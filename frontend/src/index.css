@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tarayıcının sistem temasını devre dışı bırak */
+html {
+    color-scheme: light;
+}
+
+/* Sistem teması medya sorgularını devre dışı bırak */
+@media (prefers-color-scheme: dark) {
+    html {
+        color-scheme: light !important;
+    }
+}
+
+@media (prefers-color-scheme: light) {
+    html {
+        color-scheme: light !important;
+    }
+}
+
+body{
+    height: 100vh;
+}
+
+.ql-editor{
+    font-size: 1.05rem;
+}
