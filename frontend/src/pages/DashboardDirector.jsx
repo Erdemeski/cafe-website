@@ -4,14 +4,14 @@ import { useNavigate } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux';
 import { Card } from 'flowbite-react';
 
-export default function DirectorDashboard() {
+export default function DashboardDirector() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { currentUser } = useSelector((state) => state.user);
 
   useEffect(() => {
     if (!currentUser) {
-      navigate('/staff-sign-in');
+      navigate('/');
     }
   }, [currentUser, navigate]);
 

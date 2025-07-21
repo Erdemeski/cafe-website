@@ -14,7 +14,7 @@ export default function FooterBanner() {
                     Contact With Us!
                 </h2>
                 <p className="max-w-md text-gray-600 dark:text-gray-400 lg:text-center reduce_when_too_small hidden_when_too_small">
-                    We are happy to answer your questions. You can contact us for support, information, and to make <span className='font-semibold text-gray-700 dark:text-gray-300'>special orders.</span>
+                    We are happy to answer your questions. You can contact us for support, information, and to make <span className='font-semibold text-gray-700 dark:text-gray-300'>special reservations.</span>
                 </p>
                 <Link to='/about'>
                     <button className="px-4 py-1 sm:py-1.5 text-lg font-semibold text-white bg-gray-500 rounded-lg shadow-md hover:scale-105 transition-transform">

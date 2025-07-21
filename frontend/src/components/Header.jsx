@@ -116,7 +116,7 @@ export default function Header() {
                                 </div>
                             </DropdownHeader>
                             <div>
-                                <Link to={'/director-dashboard'}>
+                                <Link to={'/dashboard-director'}>
                                     <Dropdown.Item>Dashboard</Dropdown.Item>
                                 </Link>
                             </div>

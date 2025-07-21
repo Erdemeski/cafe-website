@@ -228,7 +228,7 @@ export default function HomePage() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className='text-center font-semibold text-3xl mt-5 z-40 relative'
           >
-            Recent Advertisements
+            Most Popular Dishes
           </motion.h1>}
           <motion.div
             initial={{ opacity: 0 }}
@@ -266,7 +266,7 @@ export default function HomePage() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className='text-center font-semibold text-3xl mt-5 z-50 relative'
           >
-            Recent Advertisements
+            Most Popular Dishes
           </motion.h1>
           <motion.div
             initial={{ opacity: 0 }}

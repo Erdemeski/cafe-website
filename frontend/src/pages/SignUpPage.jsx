@@ -16,7 +16,7 @@ export default function SignUpPage() {
 
   useEffect(() => {
     if (currentUser) {
-      navigate('/director-dashboard');
+      navigate('/dashboard-director');
     }
   }, [currentUser, navigate]);
 

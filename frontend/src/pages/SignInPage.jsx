@@ -7,34 +7,45 @@ import { signInStart, signInSuccess, signInFailure } from '../redux/user/userSli
 export default function SignInPage() {
 
   const [formData, setFormData] = useState({});
-  const { currentUser, loading, error: errorMessage } = useSelector(state => state.user);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const { currentUser } = useSelector(state => state.user);
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (currentUser) {
-      navigate('/director-dashboard');
+      navigate('/dashboard-director');
     }
   }, [currentUser, navigate]);
 
+  // formData veya sayfa yenilendiğinde error'ı temizle
+  useEffect(() => {
+    setErrorMessage("");
+  }, [formData]);
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.id]: e.target.value.trim() });
+    setErrorMessage(""); // input değişince error'ı gizle
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.staffId || !formData.password) {
-      return dispatch(signInFailure('Please fill out all fields!'));
+      setErrorMessage('Please fill out all fields!');
+      return;
     }
 
     // Validate staff ID format (6 digits)
     if (!/^\d{6}$/.test(formData.staffId)) {
-      return dispatch(signInFailure('Staff ID must be 6 digits!'));
+      setErrorMessage('Staff ID must be 6 digits!');
+      return;
     }
 
     try {
-      dispatch(signInStart());
+      setLoading(true);
+      setErrorMessage("");
       const res = await fetch('/api/auth/signin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -43,16 +54,20 @@ export default function SignInPage() {
       const data = await res.json();
 
       if (data.success === false) {
-        return dispatch(signInFailure(data.message));
+        setErrorMessage(data.message);
+        setLoading(false);
+        return;
       }
 
       if (res.ok) {
         dispatch(signInSuccess(data));
+        setLoading(false);
         navigate('/');
       }
 
     } catch (error) {
-      dispatch(signInFailure(error.message));
+      setErrorMessage(error.message);
+      setLoading(false);
     }
   };
 
