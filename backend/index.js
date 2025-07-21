@@ -6,6 +6,9 @@ import userRoutes from './routes/user.route.js';
 import authRoutes from './routes/auth.route.js';
 import cookieParser from "cookie-parser";
 import contactRoutes from './routes/contact.route.js';
+import tableRoutes from './routes/table.route.js';
+import orderRoutes from './routes/order.route.js';
+import productRoutes from './routes/product.route.js';
 
 
 mongoose
@@ -30,6 +33,9 @@ app.listen(port, () => {
 app.use('/api/user', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/table', tableRoutes);
+app.use('/api/order', orderRoutes);
+app.use('/api/product', productRoutes);
 
 
 app.use((err, req, res, next) => {

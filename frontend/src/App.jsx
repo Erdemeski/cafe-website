@@ -18,6 +18,7 @@ import ReceptionDashboard from './pages/ReceptionDashboard.jsx'
 import OnlyManagerPrivateRoute from './components/OnlyManagerPrivateRoute.jsx'
 import OnlyWaiterPrivateRoute from './components/OnlyWaiterPrivateRoute.jsx'
 import OnlyReceptionPrivateRoute from './components/OnlyReceptionPrivateRoute.jsx'
+import QrOrderPage from "./pages/QrOrderPage";
 
 
 export default function App() {
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/about" element={<AboutUs />} />
         <Route path="/staff-sign-in" element={<SignInPage />} />
         <Route path="/admin-sign-up-page" element={<SignUpPage />} />
+        <Route path="/qr-order/:tableNumber" element={<QrOrderPage />} />
 
         <Route element={<PrivateRoute />}>
           <Route path="/dashboard-director" element={<DashboardDirector />} />

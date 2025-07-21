@@ -5,12 +5,14 @@ import userReducer from './user/userSlice.js';
 import themeReducer from './theme/themeSlice.js';
 import languageReducer from './page_Language/languageSlice.js';
 import currencyReducer from './currency/currencySlice.js';
+import tableCookieReducer from './table/tableCookieSlice.js';
 
 const rootReducer = combineReducers({
     user: userReducer,
     theme: themeReducer,
     language: languageReducer,
     currency: currencyReducer,
+    tableCookie: tableCookieReducer,
 });
 
 const persistConfig = {
