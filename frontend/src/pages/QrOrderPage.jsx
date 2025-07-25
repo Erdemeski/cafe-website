@@ -4,6 +4,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { setTableCookie } from "../redux/table/tableCookieSlice";
 import { Button, Card, TextInput } from "flowbite-react";
+import QrMenuHeader from "../components/QrMenuHeader";
+import ProductCard from '../components/ProductCard';
 
 const QrOrderPage = () => {
     const { tableNumber } = useParams();
@@ -14,6 +16,8 @@ const QrOrderPage = () => {
 
     const dispatch = useDispatch();
     const tableCookie = useSelector((state) => state.tableCookie);
+
+    const [headerHeight, setHeaderHeight] = useState(0);
 
 
     useEffect(() => {
@@ -133,6 +137,22 @@ const QrOrderPage = () => {
         }
     };
 
+    const categoryList = [
+        { key: 'all', label: 'Tümü', icon: <span className="mr-2">🍽️</span> },
+        { key: 'popular', label: 'En Çok Tercih Edilenler', icon: <span className="mr-2">⭐</span> },
+        { key: 'starter', label: 'Başlangıçlar', icon: <span className="mr-2">🥣</span> },
+        { key: 'main', label: 'Ana Yemekler', icon: <span className="mr-2">🍗</span> },
+        { key: 'dessert', label: 'Tatlılar', icon: <span className="mr-2">🍰</span> },
+        { key: 'drink', label: 'İçecekler', icon: <span className="mr-2">🥤</span> },
+    ];
+
+    const [selectedCategory, setSelectedCategory] = useState('all');
+
+    // Ürünleri kategoriye göre filtrele (örnek: ürünlerde Category alanı varsa)
+    const filteredProducts = selectedCategory === 'all'
+        ? products
+        : products.filter(p => (p.Category || '').toLowerCase() === selectedCategory);
+
     if (!isVerified) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-[rgb(22,26,29)] relative isolate px-4 py-16 sm:py-24 lg:px-8">
@@ -181,53 +201,88 @@ const QrOrderPage = () => {
 
     // Menü ve sipariş ekranı
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-white dark:bg-[rgb(22,26,29)] p-4">
-            <h2 className="text-2xl font-bold mb-4">Masa {tableNumber} QR Menü & Sipariş</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
-                <div>
-                    <h3 className="text-xl font-semibold mb-2">Menü</h3>
+        <>
+            <QrMenuHeader onHeightChange={setHeaderHeight} />
+            <div className="flex flex-col items-center justify-center min-h-screen bg-white dark:bg-[rgb(22,26,29)] p-4">
+                <h2 className="text-2xl font-bold mb-4">Masa {tableNumber} QR Menü & Sipariş</h2>
+                {/* Kategori Barı */}
+                <div
+                    className="w-full py-2 max-w-6xl mb-6 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent sticky z-10 bg-white dark:bg-[rgb(22,26,29)] transition-all duration-300"
+                    style={{ top: headerHeight }}
+                >
+                    <div className="flex gap-3 min-w-max px-1">
+                        {categoryList.map(cat => (
+                            <button
+                                key={cat.key}
+                                onClick={() => setSelectedCategory(cat.key)}
+                                className={`flex items-center px-5 py-2 rounded-2xl border transition font-semibold whitespace-nowrap shadow-sm
+                                    ${selectedCategory === cat.key
+                                        ? 'bg-blue-600 text-white shadow-lg dark:border-gray-700'
+                                        : 'bg-white dark:bg-[rgb(22,26,29)] text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-800'}
+                                `}
+                                style={{ minWidth: '120px' }}
+                            >
+                                {cat.icon}
+                                {cat.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-6xl mb-8">
                     {loadingProducts ? (
-                        <div>Yükleniyor...</div>
+                        <div className="col-span-full text-center">Yükleniyor...</div>
                     ) : (
-                        <ul className="space-y-2">
-                            {products.map((p) => (
-                                <li key={p._id} className="flex justify-between items-center bg-white rounded shadow px-4 py-2">
-                                    <span>{p.ProductName} <span className="text-gray-500">({p.Price}₺)</span></span>
-                                    <button onClick={() => addToCart(p)} className="bg-blue-500 text-white px-3 py-1 rounded">Ekle</button>
-                                </li>
-                            ))}
-                        </ul>
+                        filteredProducts.map((p) => {
+                            const cartItem = cart.find((item) => item._id === p._id);
+                            return (
+                                <ProductCard
+                                    key={p._id}
+                                    image={p.image || 'https://us.123rf.com/450wm/zhemchuzhina/zhemchuzhina1509/zhemchuzhina150900006/44465417-food-and-drink-outline-seamless-pattern-hand-drawn-kitchen-background-in-black-and-white-vector.jpg'}
+                                    name={p.ProductName}
+                                    description={p.Description || 'Lezzetli bir ürün'}
+                                    price={p.Price}
+                                    currency="₺"
+                                    quantity={cartItem?.qty}
+                                    onAddToCart={() => addToCart(p)}
+                                    onIncrease={cartItem ? () => addToCart(p) : undefined}
+                                    onDecrease={cartItem && cartItem.qty > 1 ? () => setCart(prev => prev.map(item => item._id === p._id ? { ...item, qty: item.qty - 1 } : item)) : cartItem ? () => removeFromCart(p._id) : undefined}
+                                />
+                            );
+                        })
                     )}
                 </div>
-                <div>
-                    <h3 className="text-xl font-semibold mb-2">Sepet</h3>
-                    {cart.length === 0 ? (
-                        <div className="text-gray-500">Sepet boş</div>
-                    ) : (
-                        <ul className="space-y-2 mb-4">
-                            {cart.map((item) => (
-                                <li key={item._id} className="flex justify-between items-center bg-white rounded shadow px-4 py-2">
-                                    <span>{item.ProductName} x {item.qty}</span>
-                                    <div className="flex items-center gap-2">
-                                        <span>{item.Price * item.qty}₺</span>
-                                        <button onClick={() => removeFromCart(item._id)} className="bg-red-500 text-white px-2 py-1 rounded">Sil</button>
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                    <div className="font-bold mb-2">Toplam: {cart.reduce((sum, item) => sum + item.Price * item.qty, 0)}₺</div>
-                    <button
-                        onClick={handleOrder}
-                        disabled={cart.length === 0}
-                        className="bg-green-600 text-white px-4 py-2 rounded font-semibold disabled:opacity-50"
-                    >
-                        Sipariş Ver
-                    </button>
-                    {orderSuccess && <div className="text-green-600 mt-2">Siparişiniz alındı!</div>}
+                <div className="w-full max-w-2xl">
+                    <div className="bg-white dark:bg-[rgb(22,26,29)] rounded-2xl shadow-lg p-6 mb-4">
+                        <h3 className="text-xl font-semibold mb-2">Sepet</h3>
+                        {cart.length === 0 ? (
+                            <div className="text-gray-500">Sepet boş</div>
+                        ) : (
+                            <ul className="space-y-2 mb-4">
+                                {cart.map((item) => (
+                                    <li key={item._id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800 rounded shadow px-4 py-2">
+                                        <span>{item.ProductName} x {item.qty}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span>{item.Price * item.qty}₺</span>
+                                            <button onClick={() => removeFromCart(item._id)} className="bg-red-500 text-white px-2 py-1 rounded">Sil</button>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                        <div className="font-bold mb-2">Toplam: {cart.reduce((sum, item) => sum + item.Price * item.qty, 0)}₺</div>
+                        <button
+                            onClick={handleOrder}
+                            disabled={cart.length === 0}
+                            className="bg-green-600 text-white px-4 py-2 rounded font-semibold disabled:opacity-50 w-full"
+                        >
+                            Sipariş Ver
+                        </button>
+                        {orderSuccess && <div className="text-green-600 mt-2">Siparişiniz alındı!</div>}
+                    </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 };
 
