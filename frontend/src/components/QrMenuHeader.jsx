@@ -26,7 +26,6 @@ export default function QrMenuHeader({ onHeightChange }) {
     const navigate = useNavigate();
     const { tableNumber } = useParams();
     const headerRef = useRef(null);
-    const [buttonRef, setButtonRef] = useState(false);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -39,17 +38,32 @@ export default function QrMenuHeader({ onHeightChange }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [showSearchbar, setShowSearchbar] = useState(false);
 
+    useEffect(() => {
+        function handleResize() {
+            if (window.innerWidth >= 1024) {
+                setShowSearchbar(false);
+            }
+        }
+        // İlk render'da da kontrol et
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     // İlk render'da header yüksekliğini bildir
     useLayoutEffect(() => {
         function updateHeight() {
             if (headerRef.current && onHeightChange) {
                 let headerHeight = headerRef.current.offsetHeight;
                 if (showSearchbar) headerHeight += 58; // searchbar yüksekliği
-                if (!showSearchbar && buttonRef) headerHeight -= 58;
+                if (!showSearchbar) headerHeight -= 58;
+                if (headerHeight < 60) headerHeight = 64;
+                if (headerHeight > 150) headerHeight = 122;
                 onHeightChange(headerHeight);
+                console.log(headerHeight);
             }
         }
-        updateHeight(); // İlk render ve dependency değişiminde hemen ölç
+        updateHeight();
         window.addEventListener('resize', updateHeight);
         return () => {
             window.removeEventListener('resize', updateHeight);
@@ -100,7 +114,7 @@ export default function QrMenuHeader({ onHeightChange }) {
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </form>
-                        <Button className='w-13 h-11 lg:hidden dark:bg-[rgb(22,26,29)]/50 dark:text-gray-300' color='gray' pill onClick={() => { setShowSearchbar(!showSearchbar); setButtonRef(true); }}>
+                        <Button className='w-13 h-11 lg:hidden dark:bg-[rgb(22,26,29)]/50 dark:text-gray-300' color='gray' pill onClick={() => { setShowSearchbar(!showSearchbar); }}>
                             <AiOutlineSearch className='w-4 h-6' />
                         </Button>
                     </>
