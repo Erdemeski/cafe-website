@@ -9,12 +9,17 @@ import { FaCartPlus } from 'react-icons/fa';
  * Modern ve responsive ürün kartı bileşeni
  * @param {string} image - Ürün görseli
  * @param {string} name - Ürün adı
+ * @param {string} shortDescription - Ürün kısa açıklaması
  * @param {string} description - Ürün açıklaması
  * @param {number|string} price - Ürün fiyatı
  * @param {string} currency - Para birimi (varsayılan: 'TL')
  * @param {function} onAddToCart - Sepete ekle butonuna tıklanınca çağrılır
+ * @param {boolean} isPopular - Ürünün popüler olup olmadığı
+ * @param {boolean} isNewOne - Ürünün yeni olup olmadığı
+ * @param {string} Category - Ürün kategorisi
+ * @param {object} headerRef - Header ref'i, searchbar'ı kapatmak için kullanılır
  */
-const ProductCard = ({ image, name, description, price, currency = 'TL', onAddToCart, quantity, onIncrease, onDecrease, onModalClose }) => {
+const ProductCard = ({ image, name, shortDescription, description, price, currency = 'TL', onAddToCart, quantity, onIncrease, onDecrease, onModalClose, isPopular = false, isNewOne = false, Category, headerRef }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState(image);
 
@@ -48,15 +53,39 @@ const ProductCard = ({ image, name, description, price, currency = 'TL', onAddTo
             src={image}
             alt={name}
             className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105 hover:scale-105"
-            onClick={() => { setIsModalOpen(true); setSelectedImage(image); }}
+            onClick={() => { 
+                setIsModalOpen(true); 
+                setSelectedImage(image); 
+                if (headerRef?.current?.closeSearchbar) {
+                    headerRef.current.closeSearchbar();
+                }
+            }}
           />
           <span className="absolute top-3 right-3 bg-blue-600 text-white text-lg font-bold px-5 py-1 rounded-full shadow-md select-none">
             {price} {currency}
           </span>
+          {isPopular && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="absolute top-3 left-3 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md select-none transform -rotate-12"
+            >
+              ⭐ Popüler
+            </motion.div>
+          )}
+          {isNewOne && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className={`absolute top-3 left-3 bg-gradient-to-r from-green-400 to-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md select-none transform rotate-12 ${isPopular ? 'mt-7' : ''}`}
+            >
+              Yeni
+            </motion.div>
+          )}
         </div>
         <div className="flex flex-col flex-1 p-4 pb-3">
           <h3 className="text-lg font-semibold mb-1 text-gray-900 dark:text-white">{name}</h3>
-          <p className="text-gray-500 dark:text-gray-300 text-sm mb-4 flex-1 line-clamp-2">{description}</p>
+          <p className="text-gray-500 dark:text-gray-300 text-sm mb-4 flex-1 line-clamp-2">{shortDescription ? shortDescription : "Lezzetli bir ürün"}</p>
           {typeof quantity === 'number' && onIncrease && onDecrease ? (
             <div className="flex items-center justify-between mt-auto min-h-[50px]">
               <motion.button
@@ -102,7 +131,7 @@ const ProductCard = ({ image, name, description, price, currency = 'TL', onAddTo
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsModalOpen(false)}
-              className="fixed inset-0 bg-black bg-opacity-50 z-40"
+              className="fixed inset-0 bg-black bg-opacity-50 z-50"
             />
 
             {/* Modal */}
@@ -115,7 +144,7 @@ const ProductCard = ({ image, name, description, price, currency = 'TL', onAddTo
             >
               <div className="bg-white dark:bg-[rgb(22,26,29)] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-gray-200 dark:border-gray-700">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                   <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-50">Ürün Detayları</h3>
                   <motion.button
                     whileHover={{ scale: 1.1 }}
@@ -130,7 +159,7 @@ const ProductCard = ({ image, name, description, price, currency = 'TL', onAddTo
                 </div>
 
                 {/* Modal Body */}
-                <div className="p-6 overflow-y-auto max-h-[70vh] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
+                <div className="p-6 overflow-y-auto max-h-[67vh] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Ürün Görseli */}
                     <div className="relative">
@@ -158,7 +187,7 @@ const ProductCard = ({ image, name, description, price, currency = 'TL', onAddTo
                           </h2>
                           <div className="w-20 h-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full"></div>
                         </div>
-                        <p className="text-gray-600 dark:text-gray-300 text-lg leading-relaxed">{description}</p>
+                        <p className="text-gray-600 dark:text-gray-300 text-lg leading-relaxed">{description ? description : "Lezzetli bir ürün"}</p>
                       </motion.div>
 
                       {/* Ürün Özellikleri */}
@@ -175,7 +204,7 @@ const ProductCard = ({ image, name, description, price, currency = 'TL', onAddTo
 
                         <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                           <span className="text-gray-700 dark:text-gray-300 font-medium">Kategori:</span>
-                          <span className="text-gray-900 dark:text-gray-100">Lezzetli Ürün</span>
+                          <span className="text-gray-900 dark:text-gray-100">{Category}</span>
                         </div>
 
                         <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
@@ -188,7 +217,7 @@ const ProductCard = ({ image, name, description, price, currency = 'TL', onAddTo
                 </div>
 
                 {/* Modal Footer */}
-                <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -223,7 +252,7 @@ const ProductCard = ({ image, name, description, price, currency = 'TL', onAddTo
                         className="w-full"
                       >
                         <Button gradientDuoTone='purpleToBlue' size='lg' className='w-full text-white font-semibold text-xl'>
-                        <FaCartPlus className='w-6 h-6 mr-2' /> Sepete Ekle
+                          <FaCartPlus className='w-6 h-6 mr-2' /> Sepete Ekle
                         </Button>
                       </motion.button>
                     )}
@@ -241,6 +270,7 @@ const ProductCard = ({ image, name, description, price, currency = 'TL', onAddTo
 ProductCard.propTypes = {
   image: PropTypes.string.isRequired,
   name: PropTypes.string.isRequired,
+  shortDescription: PropTypes.string.isRequired,
   description: PropTypes.string.isRequired,
   price: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
   currency: PropTypes.string,
@@ -249,6 +279,10 @@ ProductCard.propTypes = {
   onIncrease: PropTypes.func,
   onDecrease: PropTypes.func,
   onModalClose: PropTypes.bool,
+  isPopular: PropTypes.bool,
+  isNewOne: PropTypes.bool,
+  Category: PropTypes.string,
+  headerRef: PropTypes.object,
 };
 
 export default ProductCard;

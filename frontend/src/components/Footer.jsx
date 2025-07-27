@@ -6,8 +6,8 @@ import logo from "../assets/home_page/coffee_logo.png";
 
 export default function FooterComponent() {
   return (
-    <Footer container className='border dark:border-b-gray-800 dark:border-x-transparent border-t-2 border-x-0 dark:border-t-0 border-gray-300 rounded-none dark:bg-[rgb(32,38,43)]'>
-      <div className='w-full max-w-7xl mx-auto z-50'>
+    <Footer container className='border dark:border-b-gray-800 dark:border-x-transparent border-t-2 border-x-0 dark:border-t-0 border-gray-300 rounded-none dark:bg-[rgb(32,38,43)] z-10'>
+      <div className='w-full max-w-7xl mx-auto'>
         <div className='grid w-full justify-between sm:flex md:grid-cols-1'>
           <div className='mb-3'>
             <Link to="/" className='self-center whitespace-nowrap text-sm sm:text-xl font-semibold dark:text-white focus:outline-none focus:ring-0'>

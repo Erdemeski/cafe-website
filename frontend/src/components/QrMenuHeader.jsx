@@ -1,6 +1,6 @@
 import { Avatar, Badge, Button, Dropdown, DropdownHeader, Modal, Navbar, NavbarToggle, TextInput } from 'flowbite-react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import React, { useEffect, useState, useRef, useLayoutEffect } from 'react'
+import React, { useEffect, useState, useRef, useLayoutEffect, forwardRef, useImperativeHandle } from 'react'
 import { FaMoon, FaSun } from 'react-icons/fa'
 import { FaEuroSign, FaDollarSign } from 'react-icons/fa6'
 import { GrCurrency } from "react-icons/gr"
@@ -14,7 +14,7 @@ import { signoutSuccess } from '../redux/user/userSlice';
 import { HiOutlineExclamationCircle } from 'react-icons/hi'
 import { AiOutlineSearch } from 'react-icons/ai'
 
-export default function QrMenuHeader({ onHeightChange }) {
+const QrMenuHeader = forwardRef(({ onHeightChange, onSearchbarToggle, searchTerm, onSearchChange }, ref) => {
 
     const dispatch = useDispatch();
     const path = useLocation().pathname;
@@ -35,8 +35,12 @@ export default function QrMenuHeader({ onHeightChange }) {
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
-    const [searchTerm, setSearchTerm] = useState('');
     const [showSearchbar, setShowSearchbar] = useState(false);
+
+    // Dışarıdan searchbar'ı kapatmak için ref
+    useImperativeHandle(ref, () => ({
+        closeSearchbar: () => setShowSearchbar(false)
+    }));
 
     useEffect(() => {
         function handleResize() {
@@ -93,11 +97,17 @@ export default function QrMenuHeader({ onHeightChange }) {
         console.log(searchTerm);
     };
 
+    const handleSearchChange = (e) => {
+        const value = e.target.value;
+        if (onSearchChange) {
+            onSearchChange(value);
+        }
+    };
 
     return (
         <div ref={headerRef} className={`sticky top-0 z-[9998] transition-all duration-300 ${isScrolled ? 'backdrop-blur-3xl bg-white/5 dark:bg-[rgb(22,26,29)]/10 shadow-md' : ''}`}>
             <Navbar className={`transition-all duration-300 ${isScrolled ? 'bg-white/60 dark:bg-[rgb(22,26,29)]/70 dark:shadow-2xl' : 'dark:bg-[rgb(22,26,29)]'}`}>
-                <Link to={`/qr-order/${tableNumber}`} className='self-center whitespace-nowrap text-sm sm:text-xl font-semibold dark:text-white focus:outline-none focus:ring-0' onClick={() => { setSearchTerm(''); setIsOpen(false); }}>
+                <Link to={`/qr-order/${tableNumber}`} className='self-center whitespace-nowrap text-sm sm:text-xl font-semibold dark:text-white focus:outline-none focus:ring-0' onClick={() => { if (onSearchChange) onSearchChange(''); setIsOpen(false); }}>
                     <span className='ml-2 text-2xl font-semibold'>Erdem's <span className='bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-400 dark:to-purple-400 text-transparent bg-clip-text'>Cafe</span></span>
                 </Link>
 
@@ -110,11 +120,16 @@ export default function QrMenuHeader({ onHeightChange }) {
                                 placeholder='Search...'
                                 rightIcon={AiOutlineSearch}
                                 className='hidden lg:inline'
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                value={searchTerm || ''}
+                                onChange={handleSearchChange}
                             />
                         </form>
-                        <Button className='w-13 h-11 lg:hidden dark:bg-[rgb(22,26,29)]/50 dark:text-gray-300' color='gray' pill onClick={() => { setShowSearchbar(!showSearchbar); }}>
+                        <Button className='w-13 h-11 lg:hidden dark:bg-[rgb(22,26,29)]/50 dark:text-gray-300' color='gray' pill onClick={() => { 
+                            setShowSearchbar(!showSearchbar); 
+                            if (onSearchbarToggle) {
+                                onSearchbarToggle(!showSearchbar);
+                            }
+                        }}>
                             <AiOutlineSearch className='w-4 h-6' />
                         </Button>
                     </>
@@ -145,8 +160,8 @@ export default function QrMenuHeader({ onHeightChange }) {
                             placeholder='Menüde Ara...'
                             rightIcon={AiOutlineSearch}
                             className='w-full'
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                            value={searchTerm || ''}
+                            onChange={handleSearchChange}
                             autoFocus={showSearchbar}
                         />
                     </form>
@@ -173,4 +188,6 @@ export default function QrMenuHeader({ onHeightChange }) {
 
         </div>
     )
-}
+});
+
+export default QrMenuHeader;

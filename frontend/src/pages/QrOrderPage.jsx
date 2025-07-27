@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 // Cookie işlemleri için
 import { useDispatch, useSelector } from "react-redux";
 import { setTableCookie } from "../redux/table/tableCookieSlice";
-import { Badge, Button, Card, TextInput } from "flowbite-react";
+import { Badge, Button, Card, Spinner, TextInput } from "flowbite-react";
 import QrMenuHeader from "../components/QrMenuHeader";
 import ProductCard from '../components/ProductCard';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaCartShopping, FaCartPlus } from "react-icons/fa6";
+import { FaTimes } from "react-icons/fa";
+import { AiOutlineSearch } from "react-icons/ai";
 
 const QrOrderPage = () => {
     const { tableNumber } = useParams();
@@ -22,6 +24,27 @@ const QrOrderPage = () => {
     const [headerHeight, setHeaderHeight] = useState(0);
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [closeProductModals, setCloseProductModals] = useState(false);
+    const headerRef = useRef();
+
+    // Arama işlevselliği için state'ler
+    const [searchTerm, setSearchTerm] = useState('');
+
+    // Searchbar açıldığında modal'ları kapat
+    const handleSearchbarToggle = (isOpen) => {
+        if (isOpen) {
+            setCloseProductModals(true);
+            setTimeout(() => setCloseProductModals(false), 100);
+        }
+    };
+
+    // Arama değişikliği handler'ı
+    const handleSearchChange = (value) => {
+        setSearchTerm(value);
+        // Eğer arama terimi varsa kategoriyi 'all' yap
+        if (value.trim()) {
+            setSelectedCategory('all');
+        }
+    };
 
 
     useEffect(() => {
@@ -161,10 +184,31 @@ const QrOrderPage = () => {
 
     const [selectedCategory, setSelectedCategory] = useState('all');
 
-    // Ürünleri kategoriye göre filtrele (örnek: ürünlerde Category alanı varsa)
-    const filteredProducts = selectedCategory === 'all'
-        ? products
-        : products.filter(p => (p.Category || '').toLowerCase() === selectedCategory);
+    // Ürünleri kategoriye ve arama terimine göre filtrele
+    const filteredProducts = products.filter(product => {
+        // Önce kategori filtresini uygula
+        let categoryMatch = true;
+        if (selectedCategory !== 'all') {
+            if (selectedCategory === 'popular') {
+                categoryMatch = product.isPopular === true;
+            } else {
+                categoryMatch = (product.Category || '').toLowerCase() === selectedCategory;
+            }
+        }
+
+        // Sonra arama filtresini uygula
+        let searchMatch = true;
+        if (searchTerm.trim()) {
+            const searchLower = searchTerm.toLowerCase();
+            searchMatch =
+                product.ProductName?.toLowerCase().includes(searchLower) ||
+                product.Description?.toLowerCase().includes(searchLower) ||
+                product.ShortDescription?.toLowerCase().includes(searchLower) ||
+                product.Category?.toLowerCase().includes(searchLower);
+        }
+
+        return categoryMatch && searchMatch;
+    });
 
     if (!isVerified) {
         return (
@@ -214,8 +258,14 @@ const QrOrderPage = () => {
 
     return (
         <>
-            <QrMenuHeader onHeightChange={setHeaderHeight} />
-            <div className="flex flex-col items-center min-h-[90vh] bg-gray-100 dark:bg-[rgb(22,26,29)] relative isolate py-4 px-1">
+            <QrMenuHeader
+                ref={headerRef}
+                onHeightChange={setHeaderHeight}
+                onSearchbarToggle={handleSearchbarToggle}
+                searchTerm={searchTerm}
+                onSearchChange={handleSearchChange}
+            />
+            <div className="flex flex-col items-center min-h-[95vh] bg-gray-100 dark:bg-[rgb(22,26,29)] relative isolate py-4 px-1">
                 {/* Dekoratif arka plan - farklılaştırılmış poligon ve gradient */}
                 <div
                     aria-hidden="true"
@@ -235,7 +285,7 @@ const QrOrderPage = () => {
 
                     {/* Kategori Barı */}
                     <div
-                        className="w-full py-2 px-1 mb-6 overflow-x-auto scrollbar-none  sticky z-10 backdrop-blur-sm bg-white/50 dark:bg-[rgb(22,26,29)]/50 transition-all duration-300 rounded-md"
+                        className="w-full py-2 px-1 mb-3 overflow-x-auto scrollbar-none  sticky z-10 backdrop-blur-sm bg-white/50 dark:bg-[rgb(22,26,29)]/50 transition-all duration-300 rounded-md"
                         style={{ top: headerHeight }}
                     >
                         <div className="flex gap-3 min-w-max px-1">
@@ -267,33 +317,64 @@ const QrOrderPage = () => {
                         </div>
                     </div>
 
-                    <div className="min-h-[50vh] w-full mb-8 columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
+                    {/* Arama Sonuç Barı */}
+                    {searchTerm.trim() && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0, y: -20 }}
+                            animate={{ opacity: 1, height: 53, y: 0 }}
+                            transition={{ duration: 0.5, ease: "easeInOut" }}
+                            className="w-11/12 mx-auto mb-4 px-4 py-3 bg-blue-50/70 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg shadow-sm"
+                        >
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <AiOutlineSearch className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                    <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                                        "<span className="font-semibold">{searchTerm}</span>" için {filteredProducts.length} sonuç bulundu
+                                    </span>
+                                </div>
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => handleSearchChange('')}
+                                    className="flex items-center gap-1 px-3 py-1 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors"
+                                >
+                                    <FaTimes className="w-3 h-3" />
+                                    Aramayı Bitir
+                                </motion.button>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    <div className="min-h-[50vh] w-full mb-8 mt-5 columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
                         {loadingProducts ? (
-                            <div className="text-center text-gray-700 dark:text-gray-300">Yükleniyor...</div>
-                        ) : (
+                            <div className="flex items-center justify-center h-full">
+                                <Spinner size="lg" className="mr-2" /> Ürünler yükleniyor...
+                            </div>
+                        ) : filteredProducts.length > 0 ? (
                             <AnimatePresence mode="wait">
-                                {filteredProducts.length > 0 ? (
-                                    filteredProducts.map((p, index) => {
+                                <div className="w-full" key={selectedCategory}>
+                                    {filteredProducts.map((p, index) => {
                                         const cartItem = cart.find((item) => item._id === p._id);
                                         return (
                                             <motion.div
                                                 key={p._id}
                                                 initial={{ opacity: 0, scale: 0.8, y: 50 }}
                                                 animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                exit={{ opacity: 0, scale: 0.8, y: -50 }}
                                                 transition={{
-                                                    duration: 0.1,
+                                                    duration: 0.05,
                                                     ease: "easeOut",
                                                     delay: index * 0.05,
                                                     type: "spring",
-                                                    stiffness: 50
+                                                    stiffness: 58
                                                 }}
-                                                exit={{ opacity: 0, scale: 0.8, y: -50 }}
                                                 className="mb-6 break-inside-avoid"
                                             >
                                                 <ProductCard
                                                     image={p.image || 'https://us.123rf.com/450wm/zhemchuzhina/zhemchuzhina1509/zhemchuzhina150900006/44465417-food-and-drink-outline-seamless-pattern-hand-drawn-kitchen-background-in-black-and-white-vector.jpg'}
                                                     name={p.ProductName}
                                                     description={p.Description || 'Lezzetli bir ürün'}
+                                                    shortDescription={p.ShortDescription || 'Lezzetli bir ürün'}
                                                     price={p.Price}
                                                     currency="₺"
                                                     quantity={cartItem?.qty}
@@ -301,21 +382,33 @@ const QrOrderPage = () => {
                                                     onIncrease={cartItem ? () => addToCart(p) : undefined}
                                                     onDecrease={cartItem && cartItem.qty > 1 ? () => setCart(prev => prev.map(item => item._id === p._id ? { ...item, qty: item.qty - 1 } : item)) : cartItem ? () => removeFromCart(p._id) : undefined}
                                                     onModalClose={closeProductModals}
+                                                    isPopular={p.isPopular}
+                                                    isNewOne={p.isNewOne}
+                                                    Category={p.Category}
+                                                    headerRef={headerRef}
                                                 />
                                             </motion.div>
                                         );
-                                    })
-                                ) : (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 50 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: -50 }}
-                                        transition={{ duration: 0.2, delay: 0.2, ease: "easeInOut", type: "spring", stiffness: 100 }}
-                                        className="flex items-center justify-center text-center text-gray-700 dark:text-gray-300"
-                                    >
-                                        Bu kategoriye ait ürün bulunamadı.
-                                    </motion.div>
-                                )}
+                                    })}
+                                </div>
+                            </AnimatePresence>
+                        ) : (
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    initial={{ opacity: 0, y: 50 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.8, y: -50 }}
+                                    transition={{ duration: 0.1, delay: 0.1, ease: "easeInOut", type: "spring", stiffness: 100 }}
+                                    className="flex flex-col gap-2 items-center justify-center text-center text-gray-700 dark:text-gray-300"
+                                >
+                                    <p className="text-lg">
+                                        <span className="text-2xl font-bold">😔</span>
+                                        {searchTerm.trim()
+                                            ? `"${searchTerm}" için ürün bulunamadı.`
+                                            : 'Bu kategoriye ait ürün bulunamadı.'
+                                        }
+                                    </p>
+                                </motion.div>
                             </AnimatePresence>
                         )}
                     </div>
@@ -327,8 +420,8 @@ const QrOrderPage = () => {
                     animate={{ opacity: 1, scale: 1 }}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
-                    onClick={() => { 
-                        setIsCartOpen(true); 
+                    onClick={() => {
+                        setIsCartOpen(true);
                         setCloseProductModals(true);
                         setTimeout(() => setCloseProductModals(false), 100);
                     }}
