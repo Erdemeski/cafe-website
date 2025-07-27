@@ -21,7 +21,48 @@ const productSchema = new mongoose.Schema({
     isActive: {
         type: Boolean,
         default: true
-    }
+    },
+    ShortDescription: {
+        type: String,
+        default: "Lezzetli bir ürün"
+    },
+    Description: {
+        type: String,
+        default: "Lezzetli bir ürün"
+    },
+    Ingredients: {
+        type: String,
+        default: "No ingredients"
+    },
+    Allergens: {
+        type: String,
+        default: "No allergens"
+    },
+    isPopular: {
+        type: Boolean,
+        default: false
+    },
+    isNewOne: {
+        type: Boolean,
+        default: false
+    },
+    isVegetarian: {
+        type: Boolean,
+        default: false
+    },
+    isVegan: {
+        type: Boolean,
+        default: false
+    },
+    isGlutenFree: {
+        type: Boolean,
+        default: false
+    },
+    isLactoseFree: {
+        type: Boolean,
+        default: false
+    },
+
 }, { timestamps: true });
 
 const Product = mongoose.model('Product', productSchema);

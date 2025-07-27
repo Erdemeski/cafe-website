@@ -59,7 +59,15 @@ export const createProduct = async (req, res, next) => {
       Price, 
       image, 
       category, 
-      isActive: isActive !== undefined ? isActive : true 
+      isActive: isActive !== undefined ? isActive : true, 
+      ShortDescription,
+      Description,
+      Ingredients,
+      Allergens,
+      isPopular,
+      isNew,
+      isFeatured,
+      isVegetarian,
     });
     
     const savedProduct = await newProduct.save();
@@ -106,6 +114,12 @@ export const updateProduct = async (req, res, next) => {
     if (image) updateData.image = image;
     if (category) updateData.category = category;
     if (isActive !== undefined) updateData.isActive = isActive;
+    if (ShortDescription) updateData.ShortDescription = ShortDescription;
+    if (Description) updateData.Description = Description;
+    if (Ingredients) updateData.Ingredients = Ingredients;
+    if (Allergens) updateData.Allergens = Allergens;
+    if (isPopular) updateData.isPopular = isPopular;
+    if (isNew) updateData.isNew = isNew;
     
     const updatedProduct = await Product.findByIdAndUpdate(
       id,
@@ -145,7 +159,7 @@ export const getProduct = async (req, res, next) => {
   try {
     const { id } = req.params;
     
-    const product = await Product.findById(id).populate('category', 'name description image color');
+    const product = await Product.findById(id).populate('category', 'name description image');
     if (!product) {
       return next(errorHandler(404, "Ürün bulunamadı."));
     }
