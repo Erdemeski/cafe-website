@@ -122,10 +122,20 @@ const QrMenuHeader = forwardRef(({ onHeightChange, onSearchbarToggle, searchTerm
                                 className='hidden lg:inline'
                                 value={searchTerm || ''}
                                 onChange={handleSearchChange}
+                                color='gray'
+                                theme={{
+                                    field: {
+                                        input: {
+                                            colors: {
+                                                gray: "border-gray-300 bg-gray-50 text-gray-900 focus:border-blue-400 focus:ring-blue-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400 dark:placeholder-gray-400 dark:focus:border-gray-400 dark:focus:ring-[rgb(22,26,29)]"
+                                            }
+                                        }
+                                    }
+                                }}
                             />
                         </form>
-                        <Button className='w-13 h-11 lg:hidden dark:bg-[rgb(22,26,29)]/50 dark:text-gray-300' color='gray' pill onClick={() => { 
-                            setShowSearchbar(!showSearchbar); 
+                        <Button className='w-13 h-11 lg:hidden dark:bg-[rgb(22,26,29)]/50 dark:text-gray-300' color='gray' pill onClick={() => {
+                            setShowSearchbar(!showSearchbar);
                             if (onSearchbarToggle) {
                                 onSearchbarToggle(!showSearchbar);
                             }
@@ -163,6 +173,16 @@ const QrMenuHeader = forwardRef(({ onHeightChange, onSearchbarToggle, searchTerm
                             value={searchTerm || ''}
                             onChange={handleSearchChange}
                             autoFocus={showSearchbar}
+                            color='gray'
+                            theme={{
+                                field: {
+                                    input: {
+                                        colors: {
+                                            gray: "border-gray-300 bg-gray-50 text-gray-900 focus:border-blue-400 focus:ring-blue-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400 dark:placeholder-gray-400 dark:focus:border-gray-400 dark:focus:ring-[rgb(22,26,29)]"
+                                        }
+                                    }
+                                }
+                            }}
                         />
                     </form>
                 </div>

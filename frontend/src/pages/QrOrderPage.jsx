@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 // Cookie işlemleri için
 import { useDispatch, useSelector } from "react-redux";
-import { setTableCookie } from "../redux/table/tableCookieSlice";
+import { setTableCookie, validateCookie, refreshCookie, selectTableCookie, selectIsCookieActive } from "../redux/table/tableCookieSlice";
 import { Badge, Button, Card, Spinner, TextInput } from "flowbite-react";
 import QrMenuHeader from "../components/QrMenuHeader";
 import ProductCard from '../components/ProductCard';
@@ -19,7 +19,8 @@ const QrOrderPage = () => {
     const [isVerified, setIsVerified] = useState(false);
 
     const dispatch = useDispatch();
-    const tableCookie = useSelector((state) => state.tableCookie);
+    const tableCookie = useSelector(selectTableCookie);
+    const isCookieActive = useSelector(selectIsCookieActive);
 
     const [headerHeight, setHeaderHeight] = useState(0);
     const [isCartOpen, setIsCartOpen] = useState(false);
@@ -28,6 +29,24 @@ const QrOrderPage = () => {
 
     // Arama işlevselliği için state'ler
     const [searchTerm, setSearchTerm] = useState('');
+    const [timeLeft, setTimeLeft] = useState(0);
+    const [showSessionExpired, setShowSessionExpired] = useState(false);
+    const [lastActivityTime, setLastActivityTime] = useState(0);
+
+    // Cookie süresini gerçek zamanlı güncelle
+    useEffect(() => {
+        if (isVerified && isCookieActive && tableCookie.expiresAt) {
+            const updateTime = () => {
+                const remaining = Math.max(0, Math.floor((tableCookie.expiresAt - Date.now()) / 1000));
+                setTimeLeft(remaining);
+            };
+
+            updateTime();
+            const interval = setInterval(updateTime, 1000);
+
+            return () => clearInterval(interval);
+        }
+    }, [isVerified, isCookieActive, tableCookie.expiresAt]);
 
     // Searchbar açıldığında modal'ları kapat
     const handleSearchbarToggle = (isOpen) => {
@@ -63,20 +82,105 @@ const QrOrderPage = () => {
     }, [tableNumber]);
 
 
-    // Cookie kontrolü
+    // Cookie kontrolü (backend validasyonu ile)
     useEffect(() => {
-        // Redux'tan masa cookie bilgisini kontrol et
-        if (
-            tableCookie.tableNumber === tableNumber &&
-            tableCookie.expiresAt &&
-            Date.now() < tableCookie.expiresAt
-        ) {
-            setIsVerified(true);
-        } else {
-            setIsVerified(false);
-        }
-    }, [tableNumber, tableCookie]);
+        const validateCookieWithBackend = async () => {
+            if (tableCookie.tableNumber === tableNumber && tableCookie.cookieNumber) {
+                console.log('Frontend cookie data:', {
+                    expiresAt: tableCookie.expiresAt,
+                    currentTime: Date.now(),
+                    timeLeft: Math.floor((tableCookie.expiresAt - Date.now()) / 1000)
+                });
 
+                // expiresAt değerinin geçerli olduğundan emin ol
+                if (!tableCookie.expiresAt || tableCookie.expiresAt <= Date.now()) {
+                    console.log('Invalid expiresAt, using frontend validation');
+                    dispatch(validateCookie());
+                    return;
+                }
+
+                try {
+                    const response = await fetch("/api/table/validate-cookie", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            tableNumber,
+                            cookieNumber: tableCookie.cookieNumber,
+                            expiresAt: tableCookie.expiresAt
+                        })
+                    });
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        setIsVerified(true);
+                        setShowSessionExpired(false);
+                        // Backend validasyonu başarılı, Redux'ı güncelle
+                        dispatch(validateCookie());
+                    } else {
+                        setIsVerified(false);
+                        setShowSessionExpired(true);
+                        // Backend'de süresi dolmuş, Redux'ı temizle
+                        if (data.isExpired) {
+                            dispatch(validateCookie());
+                        }
+                    }
+                } catch (err) {
+                    // Network hatası durumunda frontend validasyonuna güven
+                    dispatch(validateCookie());
+                    if (
+                        tableCookie.tableNumber === tableNumber &&
+                        isCookieActive &&
+                        tableCookie.cookieNumber
+                    ) {
+                        setIsVerified(true);
+                        setShowSessionExpired(false);
+                    } else {
+                        setIsVerified(false);
+                        if (tableCookie.tableNumber === tableNumber && tableCookie.cookieNumber) {
+                            setShowSessionExpired(true);
+                        }
+                    }
+                }
+            } else {
+                setIsVerified(false);
+                setShowSessionExpired(false);
+            }
+        };
+
+        validateCookieWithBackend();
+    }, [tableNumber, tableCookie.cookieNumber, tableCookie.expiresAt, dispatch]);
+
+    // Periyodik cookie validasyonu (backend ile)
+    useEffect(() => {
+        if (isVerified && tableCookie.cookieNumber) {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch("/api/table/validate-cookie", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            tableNumber,
+                            cookieNumber: tableCookie.cookieNumber,
+                            expiresAt: tableCookie.expiresAt
+                        })
+                    });
+                    const data = await response.json();
+
+                    if (!response.ok || !data.success) {
+                        // Backend'de süresi dolmuş
+                        setIsVerified(false);
+                        setShowSessionExpired(true);
+                        dispatch(validateCookie());
+                    }
+                } catch (err) {
+                    // Network hatası durumunda frontend validasyonuna güven
+                    dispatch(validateCookie());
+                }
+            }, 30000); // 30 saniye
+
+            return () => clearInterval(interval);
+        }
+    }, [isVerified, tableCookie.cookieNumber, tableCookie.expiresAt, tableNumber, dispatch]);
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError("");
@@ -88,11 +192,14 @@ const QrOrderPage = () => {
             });
             const data = await response.json();
             if (response.ok && data.success) {
-                const expiresAt = Date.now() + 1 * 60 * 1000;
-                dispatch(setTableCookie({ tableNumber, expiresAt }));
+                // Backend'den gelen cookie number'ı kullan veya otomatik oluştur
+                const { cookieNumber, expiresAt } = data;
+                dispatch(setTableCookie({ tableNumber, expiresAt, cookieNumber }));
                 setIsVerified(true);
+                setSecurityCode("");
             } else {
                 setError(data.message || "Güvenlik kodu yanlış!");
+                setSecurityCode("");
             }
         } catch (err) {
             setError("Bir hata oluştu.");
@@ -147,8 +254,11 @@ const QrOrderPage = () => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
+                    cookieNumber: tableCookie.cookieNumber,
                     tableNumber,
-                    items: cart.map(({ _id, ProductName, Price, qty }) => ({ id: _id, ProductName, Price, qty }))
+                    expiresAt: tableCookie.expiresAt,
+                    items: cart.map(({ _id, ProductName, Price, qty }) => ({ id: _id, ProductName, Price, qty })),
+                    totalPrice: cart.reduce((sum, item) => sum + item.Price * item.qty, 0)
                 })
             });
             const data = await response.json();
@@ -157,6 +267,14 @@ const QrOrderPage = () => {
                 setCart([]);
                 setIsCartOpen(false);
                 setCloseProductModals(true);
+
+                // Sipariş başarılı olduğunda cookie'yi yenile
+                dispatch(refreshCookie());
+                // Redux state'inin güncellenmesi için kısa bir gecikme
+                setTimeout(() => {
+                    console.log('Cookie refreshed after order, new expiresAt:', tableCookie.expiresAt);
+                }, 100);
+
                 setTimeout(() => {
                     setOrderSuccess(false);
                     setCloseProductModals(false);
@@ -172,6 +290,76 @@ const QrOrderPage = () => {
     const scrollToTop = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
+
+    // Kullanıcı aktivitesi ile cookie yenileme (debounced)
+    const handleUserActivity = () => {
+        const now = Date.now();
+        const timeSinceLastActivity = now - lastActivityTime;
+
+        // Sadece 5 saniyede bir cookie yenile (performans için)
+        if (isVerified && isCookieActive && timeSinceLastActivity > 5000) {
+            dispatch(refreshCookie());
+            setLastActivityTime(now);
+        }
+    };
+
+    // Kullanıcı aktivitesini dinle (cookie yenileme - optimize edilmiş)
+    useEffect(() => {
+        if (isVerified && isCookieActive) {
+            // Sadece önemli aktivitelerde cookie yenile
+            const events = ['click', 'keypress', 'touchstart'];
+
+            const activityHandler = () => {
+                handleUserActivity();
+            };
+
+            events.forEach(event => {
+                document.addEventListener(event, activityHandler, true);
+            });
+
+            return () => {
+                events.forEach(event => {
+                    document.removeEventListener(event, activityHandler, true);
+                });
+            };
+        }
+    }, [isVerified, isCookieActive, lastActivityTime, dispatch]);
+
+    // Cookie süresi dolduğunda anında yönlendirme (backend ile)
+    useEffect(() => {
+        if (tableCookie.cookieNumber && isVerified) {
+            const checkExpiry = async () => {
+                try {
+                    const response = await fetch("/api/table/validate-cookie", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            tableNumber,
+                            cookieNumber: tableCookie.cookieNumber,
+                            expiresAt: tableCookie.expiresAt
+                        })
+                    });
+                    const data = await response.json();
+
+                    if (!response.ok || !data.success) {
+                        // Backend'de süresi dolmuş
+                        setIsVerified(false);
+                        setShowSessionExpired(true);
+                        dispatch(validateCookie());
+                    }
+                } catch (err) {
+                    // Network hatası durumunda frontend validasyonuna güven
+                    if (tableCookie.expiresAt && Date.now() >= tableCookie.expiresAt) {
+                        dispatch(validateCookie());
+                        setIsVerified(false);
+                        setShowSessionExpired(true);
+                    }
+                }
+            };
+
+            checkExpiry();
+        }
+    }, [tableCookie.cookieNumber, tableCookie.expiresAt, isVerified, tableNumber, dispatch]);
 
     const categoryList = [
         { key: 'all', label: 'Tümü', icon: <span className="mr-2">🍽️</span> },
@@ -213,6 +401,19 @@ const QrOrderPage = () => {
     if (!isVerified) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-[rgb(22,26,29)] relative isolate px-4 py-16 sm:py-24 lg:px-8">
+                {/* Session Expired Uyarısı */}
+                {showSessionExpired || !isCookieActive && (
+                    <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
+                        <div className="bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg shadow-lg">
+                            <div className="flex items-center gap-2">
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                </svg>
+                                <span className="font-medium">Oturum süresi doldu. Lütfen tekrar giriş yapın.</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 {/* Dekoratif arka plan - farklılaştırılmış poligon ve gradient */}
                 <div
                     aria-hidden="true"
@@ -282,6 +483,29 @@ const QrOrderPage = () => {
 
                 <div className="w-full max-w-6xl mx-auto relative z-10">
                     <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance mb-4 text-center text-gray-900 dark:text-gray-50">Masa {tableNumber} QR Menü & Sipariş</h2>
+
+                    {/* Cookie Durumu */}
+                    {isVerified && isCookieActive && tableCookie.expiresAt && (
+                        <div className="text-center mb-4">
+                            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm ${timeLeft > 30
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200'
+                                : timeLeft > 10
+                                    ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200'
+                                    : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'
+                                }`}>
+                                <div className={`w-2 h-2 rounded-full animate-pulse ${timeLeft > 30
+                                    ? 'bg-green-500'
+                                    : timeLeft > 10
+                                        ? 'bg-yellow-500'
+                                        : 'bg-red-500'
+                                    }`}></div>
+                                <span>Oturum Aktif</span>
+                                <span className="text-xs opacity-75">
+                                    ({timeLeft}s)
+                                </span>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Kategori Barı */}
                     <div
