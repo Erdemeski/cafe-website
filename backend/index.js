@@ -9,6 +9,7 @@ import contactRoutes from './routes/contact.route.js';
 import tableRoutes from './routes/table.route.js';
 import orderRoutes from './routes/order.route.js';
 import productRoutes from './routes/product.route.js';
+import categoryRoutes from './routes/category.route.js';
 
 
 mongoose
@@ -36,6 +37,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/table', tableRoutes);
 app.use('/api/order', orderRoutes);
 app.use('/api/product', productRoutes);
+app.use('/api', categoryRoutes);
 
 
 app.use((err, req, res, next) => {
