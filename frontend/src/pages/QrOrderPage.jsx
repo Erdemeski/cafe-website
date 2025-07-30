@@ -403,6 +403,7 @@ const QrOrderPage = () => {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-[rgb(22,26,29)] relative isolate px-4 py-16 sm:py-24 lg:px-8">
                 {/* Session Expired Uyarısı */}
+
                 {(showSessionExpired || (!isCookieActive && cookieTableNumber === tableNumber)) && (
                     <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
                         <div className="bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg shadow-lg">
