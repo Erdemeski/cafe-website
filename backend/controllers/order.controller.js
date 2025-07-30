@@ -123,10 +123,11 @@ export const getOrderById = async (req, res) => {
 export const getOrdersByTable = async (req, res) => {
   try {
     const { tableNumber } = req.params;
-    const { status, limit = 20 } = req.query;
+    const { status, limit = 20, cookieNumber } = req.query;
     
     const filter = { tableNumber };
     if (status) filter.status = status;
+    if (cookieNumber) filter.cookieNumber = cookieNumber;
     
     const orders = await Order.find(filter)
       .sort({ createdAt: -1 })

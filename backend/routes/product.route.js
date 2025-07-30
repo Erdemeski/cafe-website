@@ -1,10 +1,10 @@
 import express from "express";
-import { 
-    getProducts, 
-    getProductsPublic, 
-    createProduct, 
-    updateProduct, 
-    deleteProduct, 
+import {
+    getProducts,
+    getProductsPublic,
+    createProduct,
+    updateProduct,
+    deleteProduct,
     getProduct,
     getProductsByCategory
 } from "../controllers/product.controller.js";

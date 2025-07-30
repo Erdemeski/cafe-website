@@ -16,10 +16,10 @@ import { FaCartPlus } from 'react-icons/fa';
  * @param {function} onAddToCart - Sepete ekle butonuna tıklanınca çağrılır
  * @param {boolean} isPopular - Ürünün popüler olup olmadığı
  * @param {boolean} isNewOne - Ürünün yeni olup olmadığı
- * @param {string} Category - Ürün kategorisi
+ * @param {string} category - Ürün kategorisi
  * @param {object} headerRef - Header ref'i, searchbar'ı kapatmak için kullanılır
  */
-const ProductCard = ({ image, name, shortDescription, description, price, currency = 'TL', onAddToCart, quantity, onIncrease, onDecrease, onModalClose, isPopular = false, isNewOne = false, Category, headerRef }) => {
+const ProductCard = ({ image, name, shortDescription, description, price, currency = 'TL', onAddToCart, quantity, onIncrease, onDecrease, onModalClose, isPopular = false, isNewOne = false, category, headerRef }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState(image);
 
@@ -204,7 +204,7 @@ const ProductCard = ({ image, name, shortDescription, description, price, curren
 
                         <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                           <span className="text-gray-700 dark:text-gray-300 font-medium">Kategori:</span>
-                          <span className="text-gray-900 dark:text-gray-100">{Category}</span>
+                          <span className="text-gray-900 dark:text-gray-100">{category.name}</span>
                         </div>
 
                         <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
@@ -281,7 +281,7 @@ ProductCard.propTypes = {
   onModalClose: PropTypes.bool,
   isPopular: PropTypes.bool,
   isNewOne: PropTypes.bool,
-  Category: PropTypes.string,
+  category: PropTypes.string,
   headerRef: PropTypes.object,
 };
 

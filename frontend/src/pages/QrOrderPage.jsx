@@ -3,12 +3,12 @@ import { useParams, useNavigate } from "react-router-dom";
 // Cookie işlemleri için
 import { useDispatch, useSelector } from "react-redux";
 import { setTableCookie, validateCookie, refreshCookie, selectTableCookie, selectIsCookieActive, selectTableNumber } from "../redux/table/tableCookieSlice";
-import { Badge, Button, Card, Spinner, TextInput } from "flowbite-react";
+import { Badge, Button, Card, Spinner, TextInput, Textarea } from "flowbite-react";
 import QrMenuHeader from "../components/QrMenuHeader";
 import ProductCard from '../components/ProductCard';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaCartShopping, FaCartPlus } from "react-icons/fa6";
-import { FaTimes } from "react-icons/fa";
+import { FaCartShopping, FaCartPlus, FaUserTie } from "react-icons/fa6";
+import { FaTimes, FaHistory } from "react-icons/fa";
 import { AiOutlineSearch } from "react-icons/ai";
 
 const QrOrderPage = () => {
@@ -33,6 +33,16 @@ const QrOrderPage = () => {
     const [timeLeft, setTimeLeft] = useState(0);
     const [showSessionExpired, setShowSessionExpired] = useState(false);
     const [lastActivityTime, setLastActivityTime] = useState(0);
+
+    // Yeni modal state'leri
+    const [isWaiterModalOpen, setIsWaiterModalOpen] = useState(false);
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const [isOrderDetailsModalOpen, setIsOrderDetailsModalOpen] = useState(false);
+    const [orderHistory, setOrderHistory] = useState([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const [customerName, setCustomerName] = useState("");
+    const [orderNotes, setOrderNotes] = useState("");
+    const [waiterNotes, setWaiterNotes] = useState("");
 
     // Cookie süresini gerçek zamanlı güncelle
     useEffect(() => {
@@ -213,11 +223,37 @@ const QrOrderPage = () => {
     const [cart, setCart] = useState([]);
     const [orderSuccess, setOrderSuccess] = useState(false);
 
+    // Kategoriler için state
+    const [categories, setCategories] = useState([]);
+    const [loadingCategories, setLoadingCategories] = useState(true);
+    const [categoriesError, setCategoriesError] = useState(null);
+
+    const fetchCategories = async () => {
+        setLoadingCategories(true);
+        setCategoriesError(null);
+        try {
+            const res = await fetch("/api/categories?isActive=true");
+            const data = await res.json();
+            if (res.ok) {
+                setCategories(data);
+            } else {
+                setCategoriesError("Kategoriler yüklenemedi");
+            }
+        } catch (err) {
+            console.error("Kategoriler yüklenirken hata:", err);
+            setCategoriesError("Kategoriler yüklenirken hata oluştu");
+        } finally {
+            setLoadingCategories(false);
+        }
+    };
+
     useEffect(() => {
         const fetchProducts = async () => {
             setLoadingProducts(true);
             try {
-                const res = await fetch("/api/product/get-products");
+                /*                 const res = await fetch("/api/product/get-products");
+                 */
+                const res = await fetch("/api/product/public");
                 const data = await res.json();
                 if (res.ok && data.success) {
                     setProducts(data.products);
@@ -228,9 +264,24 @@ const QrOrderPage = () => {
                 setLoadingProducts(false);
             }
         };
+
+        fetchCategories();
         fetchProducts();
         console.log(products);
     }, []);
+
+    // Dinamik kategori listesi oluştur
+    const categoryList = [
+        { key: 'all', label: 'Tümü', icon: <span className="mr-2">💫</span> },
+        { key: 'popular', label: 'En Çok Tercih Edilenler', icon: <span className="mr-2">⭐</span> },
+        ...categories.map(category => ({
+            key: category._id,
+            label: category.name,
+            icon: <span className="mr-2">{category.image}</span>
+        }))
+    ];
+
+    const [selectedCategory, setSelectedCategory] = useState('all');
 
     const addToCart = (product) => {
         setCart((prev) => {
@@ -249,43 +300,111 @@ const QrOrderPage = () => {
         setCart((prev) => prev.filter((item) => item._id !== id));
     };
 
-    const handleOrder = async () => {
+    // Sipariş geçmişini getir
+    const fetchOrderHistory = async () => {
+        if (!tableCookie.cookieNumber) return;
+
+        setLoadingHistory(true);
         try {
-            const response = await fetch("/api/order/give-order", {
+            const response = await fetch(`/api/order/table/${tableNumber}?cookieNumber=${tableCookie.cookieNumber}`, {
+                method: "GET",
+                headers: { "Content-Type": "application/json" }
+            });
+            const data = await response.json();
+            if (response.ok && data.success) {
+                setOrderHistory(data.orders || []);
+            } else {
+                console.error("Sipariş geçmişi alınamadı:", data.message);
+            }
+        } catch (err) {
+            console.error("Sipariş geçmişi alınırken hata:", err);
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
+
+    // Garson çağır
+    const callWaiter = async () => {
+        try {
+            const response = await fetch("/api/table/call-waiter", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    cookieNumber: tableCookie.cookieNumber,
                     tableNumber,
+                    cookieNumber: tableCookie.cookieNumber,
                     expiresAt: tableCookie.expiresAt,
-                    items: cart.map(({ _id, ProductName, Price, qty }) => ({ id: _id, ProductName, Price, qty })),
-                    totalPrice: cart.reduce((sum, item) => sum + item.Price * item.qty, 0)
+                    notes: waiterNotes.trim()
                 })
             });
             const data = await response.json();
             if (response.ok && data.success) {
-                setOrderSuccess(true);
-                setCart([]);
-                setIsCartOpen(false);
-                setCloseProductModals(true);
-
-                // Sipariş başarılı olduğunda cookie'yi yenile
-                dispatch(refreshCookie());
-                // Redux state'inin güncellenmesi için kısa bir gecikme
-                setTimeout(() => {
-                    console.log('Cookie refreshed after order, new expiresAt:', tableCookie.expiresAt);
-                }, 100);
-
-                setTimeout(() => {
-                    setOrderSuccess(false);
-                    setCloseProductModals(false);
-                }, 3000);
+                alert("Garson çağrınız alındı. Kısa süre içinde gelecektir.");
+                setIsWaiterModalOpen(false);
+                setWaiterNotes("");
             } else {
-                alert(data.message || "Sipariş gönderilemedi.");
+                alert(data.message || "Garson çağrısı gönderilemedi.");
             }
         } catch (err) {
             alert("Bir hata oluştu.");
         }
+    };
+
+    const handleOrder = async () => {
+        // Sipariş detayları modalını aç
+        setIsOrderDetailsModalOpen(true);
+    };
+
+    const submitOrder = async () => {
+        // Kullanıcı adı kontrolü
+        if (!customerName.trim()) {
+            alert("Lütfen adınızı girin.");
+            return;
+        }
+
+        // 1 saniye sonra siparişi gönder
+        setTimeout(async () => {
+            try {
+                const response = await fetch("/api/order/give-order", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        cookieNumber: tableCookie.cookieNumber,
+                        tableNumber,
+                        expiresAt: tableCookie.expiresAt,
+                        items: cart.map(({ _id, ProductName, Price, qty }) => ({ id: _id, ProductName, Price, qty })),
+                        totalPrice: cart.reduce((sum, item) => sum + item.Price * item.qty, 0),
+                        customerName: customerName.trim(),
+                        notes: orderNotes.trim()
+                    })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    setOrderSuccess(true);
+                    setCart([]);
+                    setIsCartOpen(false);
+                    setIsOrderDetailsModalOpen(false);
+                    setCloseProductModals(true);
+                    setCustomerName("");
+                    setOrderNotes("");
+
+                    // Sipariş başarılı olduğunda cookie'yi yenile
+                    dispatch(refreshCookie());
+                    // Redux state'inin güncellenmesi için kısa bir gecikme
+                    setTimeout(() => {
+                        console.log('Cookie refreshed after order, new expiresAt:', tableCookie.expiresAt);
+                    }, 100);
+
+                    setTimeout(() => {
+                        setOrderSuccess(false);
+                        setCloseProductModals(false);
+                    }, 3000);
+                } else {
+                    alert(data.message || "Sipariş gönderilemedi.");
+                }
+            } catch (err) {
+                alert("Bir hata oluştu.");
+            }
+        }, 1000);
     };
 
     const scrollToTop = () => {
@@ -362,17 +481,6 @@ const QrOrderPage = () => {
         }
     }, [tableCookie.cookieNumber, tableCookie.expiresAt, isVerified, tableNumber, dispatch]);
 
-    const categoryList = [
-        { key: 'all', label: 'Tümü', icon: <span className="mr-2">🍽️</span> },
-        { key: 'popular', label: 'En Çok Tercih Edilenler', icon: <span className="mr-2">⭐</span> },
-        { key: 'starter', label: 'Başlangıçlar', icon: <span className="mr-2">🥣</span> },
-        { key: 'main', label: 'Ana Yemekler', icon: <span className="mr-2">🍗</span> },
-        { key: 'dessert', label: 'Tatlılar', icon: <span className="mr-2">🍰</span> },
-        { key: 'drink', label: 'İçecekler', icon: <span className="mr-2">🥤</span> },
-    ];
-
-    const [selectedCategory, setSelectedCategory] = useState('all');
-
     // Ürünleri kategoriye ve arama terimine göre filtrele
     const filteredProducts = products.filter(product => {
         // Önce kategori filtresini uygula
@@ -381,7 +489,8 @@ const QrOrderPage = () => {
             if (selectedCategory === 'popular') {
                 categoryMatch = product.isPopular === true;
             } else {
-                categoryMatch = (product.Category || '').toLowerCase() === selectedCategory;
+                // Kategori ID'si ile karşılaştır
+                categoryMatch = product.category?._id === selectedCategory;
             }
         }
 
@@ -393,7 +502,7 @@ const QrOrderPage = () => {
                 product.ProductName?.toLowerCase().includes(searchLower) ||
                 product.Description?.toLowerCase().includes(searchLower) ||
                 product.ShortDescription?.toLowerCase().includes(searchLower) ||
-                product.Category?.toLowerCase().includes(searchLower);
+                product.category?.name?.toLowerCase().includes(searchLower);
         }
 
         return categoryMatch && searchMatch;
@@ -511,35 +620,54 @@ const QrOrderPage = () => {
 
                     {/* Kategori Barı */}
                     <div
-                        className="w-full py-2 px-1 mb-3 overflow-x-auto scrollbar-none  sticky z-10 backdrop-blur-sm bg-white/50 dark:bg-[rgb(22,26,29)]/50 transition-all duration-300 rounded-md"
+                        className="w-full py-2 px-1 mb-3 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 sticky z-10 backdrop-blur-sm bg-white/50 dark:bg-[rgb(22,26,29)]/50 transition-all duration-300 rounded-md"
                         style={{ top: headerHeight }}
                     >
                         <div className="flex gap-3 min-w-max px-1">
-                            {categoryList.map((cat, index) => (
-                                <motion.button
-                                    key={cat.key}
-                                    initial={{ opacity: 0, scale: 0.9, x: -10 }}
-                                    animate={{ opacity: 1, scale: 1, x: 0 }}
-                                    transition={{ duration: 0.2, delay: index * 0.05, ease: "easeInOut", type: "spring", stiffness: 100 }}
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => { setSelectedCategory(cat.key); scrollToTop(); }}
-                                    className={`flex items-center px-5 py-2 rounded-2xl border transition font-semibold whitespace-nowrap shadow-sm
-                                        ${selectedCategory === cat.key
-                                            ? 'bg-blue-600 text-white shadow-lg dark:border-gray-700'
-                                            : 'bg-white dark:bg-[rgb(22,26,29)] text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-800'}
-                                    `}
-                                    style={{ minWidth: '120px' }}
-                                >
-                                    <motion.span
-                                        animate={selectedCategory === cat.key ? { rotate: [0, 10, -10, 0] } : {}}
-                                        transition={{ duration: 0.5, repeat: selectedCategory === cat.key ? Infinity : 0, repeatDelay: 2 }}
+                            {loadingCategories ? (
+                                <div className="flex items-center justify-center w-full py-2">
+                                    <Spinner size="sm" className="mr-2" /> Kategoriler yükleniyor...
+                                </div>
+                            ) : categoriesError ? (
+                                <div className="flex items-center justify-center w-full py-2 text-red-600 dark:text-red-400">
+                                    <span className="text-sm mr-2">{categoriesError}</span>
+                                    <button
+                                        onClick={() => {
+                                            setCategoriesError(null);
+                                            fetchCategories();
+                                        }}
+                                        className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
                                     >
-                                        {cat.icon}
-                                    </motion.span>
-                                    {cat.label}
-                                </motion.button>
-                            ))}
+                                        Tekrar Dene
+                                    </button>
+                                </div>
+                            ) : (
+                                categoryList.map((cat, index) => (
+                                    <motion.button
+                                        key={cat.key}
+                                        initial={{ opacity: 0, scale: 0.9, x: -10 }}
+                                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                                        transition={{ duration: 0.2, delay: index * 0.05, ease: "easeInOut", type: "spring", stiffness: 100 }}
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={() => { setSelectedCategory(cat.key); scrollToTop(); }}
+                                        className={`flex items-center px-5 py-2 rounded-2xl border transition font-semibold whitespace-nowrap shadow-sm
+                                        ${selectedCategory === cat.key
+                                                ? 'bg-blue-600 text-white shadow-lg dark:border-gray-700'
+                                                : 'bg-white dark:bg-[rgb(22,26,29)] text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-800'}
+                                    `}
+                                        style={{ minWidth: '120px' }}
+                                    >
+                                        <motion.span
+                                            animate={selectedCategory === cat.key ? { rotate: [0, 10, -10, 0] } : {}}
+                                            transition={{ duration: 0.5, repeat: selectedCategory === cat.key ? Infinity : 0, repeatDelay: 2 }}
+                                        >
+                                            {cat.icon}
+                                        </motion.span>
+                                        {cat.label}
+                                    </motion.button>
+                                ))
+                            )}
                         </div>
                     </div>
 
@@ -594,7 +722,7 @@ const QrOrderPage = () => {
                                                     type: "spring",
                                                     stiffness: 58
                                                 }}
-                                                className="mb-6 break-inside-avoid"
+                                                className="mb-6 mx-2 sm:mx-4 break-inside-avoid"
                                             >
                                                 <ProductCard
                                                     image={p.image || 'https://us.123rf.com/450wm/zhemchuzhina/zhemchuzhina1509/zhemchuzhina150900006/44465417-food-and-drink-outline-seamless-pattern-hand-drawn-kitchen-background-in-black-and-white-vector.jpg'}
@@ -610,7 +738,7 @@ const QrOrderPage = () => {
                                                     onModalClose={closeProductModals}
                                                     isPopular={p.isPopular}
                                                     isNewOne={p.isNewOne}
-                                                    Category={p.Category}
+                                                    category={p.category}
                                                     headerRef={headerRef}
                                                 />
                                             </motion.div>
@@ -640,32 +768,79 @@ const QrOrderPage = () => {
                     </div>
                 </div>
 
-                {/* Sabit Sepet Butonu */}
-                <motion.button
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => {
-                        setIsCartOpen(true);
-                        setCloseProductModals(true);
-                        setTimeout(() => setCloseProductModals(false), 100);
-                    }}
-                    className="fixed bottom-8 right-8 z-50 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg border-2 border-white dark:border-gray-700 transition-all duration-300"
-                >
-                    <div className="relative">
-                        <FaCartShopping className="w-6 h-6 text-white" />
-                        {cart.length > 0 && (
-                            <motion.span
-                                initial={{ scale: 0 }}
-                                animate={{ scale: 1 }}
-                                className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold"
-                            >
-                                {cart.reduce((sum, item) => sum + item.qty, 0)}
-                            </motion.span>
-                        )}
-                    </div>
-                </motion.button>
+                {/* Sabit Butonlar */}
+                <div className="fixed bottom-6 right-5 z-50 flex flex-col gap-2">
+                    {/* Garson Çağır Butonu */}
+                    <motion.button
+                        initial={{ opacity: 0, scale: 0.8, x: 20 }}
+                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => {
+                            setIsWaiterModalOpen(true);
+                            setCloseProductModals(true);
+                            setTimeout(() => setCloseProductModals(false), 100);
+                        }}
+                        className="bg-orange-500 hover:bg-orange-600 text-white rounded-full p-3 shadow-lg border-2 border-white dark:border-gray-700 transition-all duration-300"
+                    >
+                        <FaUserTie className="w-5 h-5 text-white" />
+                    </motion.button>
+
+                    {/* Sipariş Geçmişi Butonu */}
+                    <motion.button
+                        initial={{ opacity: 0, scale: 0.8, x: 20 }}
+                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => {
+                            setIsHistoryModalOpen(true);
+                            fetchOrderHistory();
+                            setCloseProductModals(true);
+                            setTimeout(() => setCloseProductModals(false), 100);
+                        }}
+                        className="bg-purple-500 hover:bg-purple-600 text-white rounded-full p-3 shadow-lg border-2 border-white dark:border-gray-700 transition-all duration-300"
+                    >
+                        <div className="relative">
+                            <FaHistory className="w-5 h-5 text-white" />
+                            {orderHistory.length > 0 && (
+                                <motion.span
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    className="absolute top-0.5 -right-1 bg-white text-purple-500 text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold"
+                                >
+                                    {orderHistory.length}
+                                </motion.span>
+                            )}
+                        </div>
+                    </motion.button>
+
+                    {/* Sepet Butonu */}
+                    <motion.button
+                        initial={{ opacity: 0, scale: 0.8, x: 20 }}
+                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => {
+                            setIsCartOpen(true);
+                            setCloseProductModals(true);
+                            setTimeout(() => setCloseProductModals(false), 100);
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg border-2 border-white dark:border-gray-700 transition-all duration-300"
+                    >
+                        <div className="relative">
+                            <FaCartShopping className="w-6 h-6 text-white" />
+                            {cart.length > 0 && (
+                                <motion.span
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold"
+                                >
+                                    {cart.reduce((sum, item) => sum + item.qty, 0)}
+                                </motion.span>
+                            )}
+                        </div>
+                    </motion.button>
+                </div>
 
                 {/* Sepet Modal */}
                 <AnimatePresence>
@@ -690,7 +865,7 @@ const QrOrderPage = () => {
                             >
                                 <div className="bg-white dark:bg-[rgb(22,26,29)] rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-700">
                                     {/* Modal Header */}
-                                    <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+                                    <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                                         <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-50">Sepet</h3>
                                         <motion.button
                                             whileHover={{ scale: 1.1 }}
@@ -705,7 +880,7 @@ const QrOrderPage = () => {
                                     </div>
 
                                     {/* Modal Body */}
-                                    <div className="p-6 overflow-y-auto max-h-[50vh] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
+                                    <div className="p-6 overflow-y-auto max-h-[45vh] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
                                         {cart.length === 0 ? (
                                             <motion.div
                                                 initial={{ opacity: 0, y: 20 }}
@@ -784,7 +959,7 @@ const QrOrderPage = () => {
 
                                     {/* Modal Footer */}
                                     {cart.length > 0 && (
-                                        <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+                                        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
                                             <div className="flex justify-between items-center mb-4">
                                                 <span className="text-lg font-semibold text-gray-900 dark:text-gray-50">Toplam:</span>
                                                 <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
@@ -813,6 +988,379 @@ const QrOrderPage = () => {
                                             </AnimatePresence>
                                         </div>
                                     )}
+                                </div>
+                            </motion.div>
+                        </>
+                    )}
+                </AnimatePresence>
+
+                {/* Sipariş Detayları Modal */}
+                <AnimatePresence>
+                    {isOrderDetailsModalOpen && (
+                        <>
+                            {/* Backdrop */}
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                onClick={() => setIsOrderDetailsModalOpen(false)}
+                                className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                            />
+
+                            {/* Modal */}
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.8, y: 50 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.8, y: 50 }}
+                                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                                className="fixed inset-4 z-50 flex items-center justify-center p-4"
+                            >
+                                <div className="bg-white dark:bg-[rgb(22,26,29)] rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-700">
+                                    {/* Modal Header */}
+                                    <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                                        <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-50">Sipariş Detayları</h3>
+                                        <motion.button
+                                            whileHover={{ scale: 1.1 }}
+                                            whileTap={{ scale: 0.9 }}
+                                            onClick={() => setIsOrderDetailsModalOpen(false)}
+                                            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                        >
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </motion.button>
+                                    </div>
+
+                                    {/* Modal Body */}
+                                    <div className="p-6 overflow-y-auto max-h-[60vh] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
+                                        {/* Konum Uyarısı */}
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg"
+                                        >
+                                            <div className="flex items-start gap-2">
+                                                <svg className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                </svg>
+                                                <div className="text-sm text-yellow-800 dark:text-yellow-200">
+                                                    <p className="font-medium">Konum İzni</p>
+                                                    <p className="text-xs">Siparişiniz işlenirken cihazınızın konum bilgisine erişim istenecektir. Bu, siparişinizin doğrulanması için gereklidir. <span className="font-bold">Konum bilginiz hiçbir şekilde saklanmamaktadır.</span></p>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                        {/* Kullanıcı Adı */}
+                                        <div className="mb-4">
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                Adınız * <span className="text-red-500">(Zorunlu)</span>
+                                            </label>
+                                            <TextInput
+                                                type="text"
+                                                placeholder="Adınızı girin"
+                                                value={customerName}
+                                                onChange={(e) => setCustomerName(e.target.value)}
+                                                required
+                                                className="w-full"
+                                            />
+                                        </div>
+
+                                        {/* Sipariş Notları */}
+                                        <div className="mb-4">
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                Sipariş Notları <span className="text-gray-500">(Opsiyonel)</span>
+                                            </label>
+                                            <Textarea
+                                                placeholder="Özel istekleriniz, alerjileriniz vb."
+                                                value={orderNotes}
+                                                onChange={(e) => setOrderNotes(e.target.value)}
+                                                rows={3}
+                                                className="w-full resize-none"
+                                            />
+                                        </div>
+
+                                        {/* Sipariş Özeti */}
+                                        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                                            <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Sipariş Özeti</h4>
+                                            <div className="space-y-2 mb-3">
+                                                {cart.map((item, itemIndex) => (
+                                                    <div key={itemIndex} className="flex justify-between items-center text-sm">
+                                                        <span className="text-gray-700 dark:text-gray-300">
+                                                            {item.ProductName} x{item.qty}
+                                                        </span>
+                                                        <span className="font-medium text-gray-900 dark:text-gray-100">
+                                                            {item.Price * item.qty}₺
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="flex justify-between items-center pt-3 border-t border-gray-200 dark:border-gray-700">
+                                                <span className="font-semibold text-gray-900 dark:text-gray-100">Toplam:</span>
+                                                <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                                                    {cart.reduce((sum, item) => sum + item.Price * item.qty, 0)}₺
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                    {/* Modal Footer */}
+                                    <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                                        <div className="flex gap-3">
+                                            <motion.button
+                                                whileHover={{ scale: 1.02 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                onClick={() => setIsOrderDetailsModalOpen(false)}
+                                                className="flex-1 bg-gray-300 text-gray-700 py-3 px-2 rounded-lg text-sm font-semibold hover:bg-gray-400 transition-colors"
+                                            >
+                                                İptal
+                                            </motion.button>
+                                            <motion.button
+                                                whileHover={{ scale: 1.02 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                onClick={() => {
+                                                    submitOrder();
+                                                    setTimeout(() => {
+                                                        fetchOrderHistory();
+                                                    }, 1000);
+                                                }}
+                                                className="flex-1 bg-green-600 text-white py-3 px-2 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors"
+                                            >
+                                                Siparişi Onayla
+                                            </motion.button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        </>
+                    )}
+                </AnimatePresence>
+
+                {/* Garson Çağırma Modal */}
+                <AnimatePresence>
+                    {isWaiterModalOpen && (
+                        <>
+                            {/* Backdrop */}
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                onClick={() => setIsWaiterModalOpen(false)}
+                                className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                            />
+
+                            {/* Modal */}
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.8, y: 50 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.8, y: 50 }}
+                                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                                className="fixed inset-4 z-50 flex items-center justify-center p-4"
+                            >
+                                <div className="bg-white dark:bg-[rgb(22,26,29)] rounded-2xl shadow-2xl w-full max-w-sm max-h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-700">
+                                    {/* Modal Header */}
+                                    <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                                        <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-50">Garson Çağır</h3>
+                                        <motion.button
+                                            whileHover={{ scale: 1.1 }}
+                                            whileTap={{ scale: 0.9 }}
+                                            onClick={() => setIsWaiterModalOpen(false)}
+                                            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                        >
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </motion.button>
+                                    </div>
+
+                                    {/* Modal Body */}
+                                    <div className="p-6 overflow-y-auto max-h-[60vh] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
+                                        <div className="text-center mb-5">
+                                            <FaUserTie className="w-16 h-16 mx-auto mb-4 text-orange-500" />
+                                            <h4 className="text-lg font-medium text-gray-900 dark:text-gray-50 mb-2">
+                                                Garson Çağrısı
+                                            </h4>
+                                            <p className="text-gray-600 dark:text-gray-400">
+                                                Masa {tableNumber} için garson çağrısı göndermek istiyor musunuz?
+                                            </p>
+                                        </div>
+
+                                        {/* Not Ekleme */}
+                                        <div className="mb-3">
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                Not <span className="text-gray-500">(Opsiyonel)</span>
+                                            </label>
+                                            <Textarea
+                                                placeholder="Garson için özel istekleriniz, sorularınız vb."
+                                                value={waiterNotes}
+                                                onChange={(e) => setWaiterNotes(e.target.value)}
+                                                rows={3}
+                                                className="w-full resize-none text-xs"
+                                            />
+                                        </div>
+
+                                        {/* Konum Uyarısı */}
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="mb-5 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg"
+                                        >
+                                            <div className="flex items-start gap-2">
+                                                <svg className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                </svg>
+                                                <div className="text-sm text-yellow-800 dark:text-yellow-200">
+                                                    <p className="font-medium">Konum İzni</p>
+                                                    <p className="text-xs">Garson çağrısının işlenmesi sırasında cihazınızın konum bilgisine erişim istenecektir. Bu, garson çağrısının doğrulanması için gereklidir. <span className="font-bold">Konum bilginiz hiçbir şekilde saklanmamaktadır.</span></p>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+
+
+                                        <div className="flex gap-3 text-sm">
+                                            <motion.button
+                                                whileHover={{ scale: 1.02 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                onClick={() => {
+                                                    setIsWaiterModalOpen(false);
+                                                    setWaiterNotes("");
+                                                }}
+                                                className="flex-1 bg-gray-300 text-gray-700 py-3 px-4 rounded-lg font-semibold hover:bg-gray-400 transition-colors"
+                                            >
+                                                İptal
+                                            </motion.button>
+                                            <motion.button
+                                                whileHover={{ scale: 1.02 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                onClick={callWaiter}
+                                                className="flex-1 bg-orange-500 text-white py-1 px-4 rounded-lg font-semibold hover:bg-orange-600 transition-colors"
+                                            >
+                                                Garson Çağır
+                                            </motion.button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        </>
+                    )}
+                </AnimatePresence>
+
+                {/* Sipariş Geçmişi Modal */}
+                <AnimatePresence>
+                    {isHistoryModalOpen && (
+                        <>
+                            {/* Backdrop */}
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                onClick={() => setIsHistoryModalOpen(false)}
+                                className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                            />
+
+                            {/* Modal */}
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.8, y: 50 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.8, y: 50 }}
+                                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                                className="fixed inset-4 z-50 flex items-center justify-center p-4"
+                            >
+                                <div className="bg-white dark:bg-[rgb(22,26,29)] rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-700">
+                                    {/* Modal Header */}
+                                    <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                                        <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-50">Sipariş Geçmişi</h3>
+                                        <motion.button
+                                            whileHover={{ scale: 1.1 }}
+                                            whileTap={{ scale: 0.9 }}
+                                            onClick={() => setIsHistoryModalOpen(false)}
+                                            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                        >
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </motion.button>
+                                    </div>
+
+                                    {/* Modal Body */}
+                                    <div className="p-6 overflow-y-auto max-h-[60vh] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
+                                        {loadingHistory ? (
+                                            <div className="flex items-center justify-center py-8">
+                                                <Spinner size="lg" className="mr-2" /> Sipariş geçmişi yükleniyor...
+                                            </div>
+                                        ) : orderHistory.length > 0 ? (
+                                            <div className="space-y-4">
+                                                {orderHistory.map((order, index) => (
+                                                    <motion.div
+                                                        key={order._id}
+                                                        initial={{ opacity: 0, y: 20 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        transition={{ duration: 0.3, delay: index * 0.1 }}
+                                                        className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700"
+                                                    >
+                                                        <div className="flex justify-between items-start mb-3">
+                                                            <div>
+                                                                <h4 className="font-semibold text-gray-900 dark:text-gray-100">
+                                                                    Sipariş #{order.orderNumber}
+                                                                </h4>
+                                                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                                    {new Date(order.createdAt).toLocaleString('tr-TR')}
+                                                                </p>
+                                                            </div>
+                                                            <Badge
+                                                                color={
+                                                                    order.status === 'pending' ? 'yellow' :
+                                                                        order.status === 'preparing' ? 'blue' :
+                                                                            order.status === 'ready' ? 'green' :
+                                                                                order.status === 'served' ? 'purple' : 'red'
+                                                                }
+                                                                className="text-xs"
+                                                            >
+                                                                {order.status === 'pending' ? 'Bekliyor' :
+                                                                    order.status === 'preparing' ? 'Hazırlanıyor' :
+                                                                        order.status === 'ready' ? 'Hazır' :
+                                                                            order.status === 'served' ? 'Servis Edildi' : 'İptal Edildi'}
+                                                            </Badge>
+                                                        </div>
+
+                                                        <div className="space-y-2 mb-3">
+                                                            {order.items.map((item, itemIndex) => (
+                                                                <div key={itemIndex} className="flex justify-between items-center text-sm">
+                                                                    <span className="text-gray-700 dark:text-gray-300">
+                                                                        {item.ProductName} x{item.qty}
+                                                                    </span>
+                                                                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                                                                        {item.totalItemPrice}₺
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+
+                                                        <div className="flex justify-between items-center pt-3 border-t border-gray-200 dark:border-gray-700">
+                                                            <span className="font-semibold text-gray-900 dark:text-gray-100">
+                                                                Toplam: {order.totalPrice}₺
+                                                            </span>
+                                                        </div>
+
+                                                        {order.notes && (
+                                                            <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-sm text-blue-800 dark:text-blue-200">
+                                                                <strong>Not:</strong> {order.notes}
+                                                            </div>
+                                                        )}
+                                                    </motion.div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 20 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className="text-center text-gray-500 dark:text-gray-400 py-8"
+                                            >
+                                                <FaHistory className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+                                                <p className="text-lg">Henüz sipariş geçmişi yok</p>
+                                                <p className="text-sm">İlk siparişinizi verdiğinizde burada görünecek</p>
+                                            </motion.div>
+                                        )}
+                                    </div>
                                 </div>
                             </motion.div>
                         </>

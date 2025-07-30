@@ -42,7 +42,7 @@ export const createProduct = async (req, res, next) => {
   //}
   
   try {
-    const { ProductName, Price, image, category, isActive } = req.body;
+    const { ProductName, Price, image, category, isActive, ShortDescription, Description, Ingredients, Allergens, isPopular, isNewOne, isVegetarian, isVegan, isGlutenFree, isLactoseFree } = req.body;
     
     if (!ProductName || !Price || !category) {
       return next(errorHandler(400, "Eksik parametre."));
@@ -65,9 +65,11 @@ export const createProduct = async (req, res, next) => {
       Ingredients,
       Allergens,
       isPopular,
-      isNew,
-      isFeatured,
+      isNewOne,
       isVegetarian,
+      isVegan,
+      isGlutenFree,
+      isLactoseFree,
     });
     
     const savedProduct = await newProduct.save();
@@ -88,10 +90,10 @@ export const updateProduct = async (req, res, next) => {
   
   try {
     const { id } = req.params;
-    const { ProductName, Price, image, category, isActive } = req.body;
+    const { ProductName, Price, image, category, isActive, ShortDescription, Description, Ingredients, Allergens, isPopular, isNewOne, isVegetarian, isVegan, isGlutenFree, isLactoseFree } = req.body;
     
     // En az bir güncelleme alanı olmalı
-    if (!ProductName && !Price && !image && !category && isActive === undefined) {
+    if (!ProductName && !Price && !image && !category && isActive === undefined && !ShortDescription && !Description && !Ingredients && !Allergens && isPopular === undefined && isNewOne === undefined && isVegetarian === undefined && isVegan === undefined && isGlutenFree === undefined && isLactoseFree === undefined) {
       return next(errorHandler(400, "En az bir güncelleme alanı gerekli."));
     }
     
@@ -118,8 +120,12 @@ export const updateProduct = async (req, res, next) => {
     if (Description) updateData.Description = Description;
     if (Ingredients) updateData.Ingredients = Ingredients;
     if (Allergens) updateData.Allergens = Allergens;
-    if (isPopular) updateData.isPopular = isPopular;
-    if (isNew) updateData.isNew = isNew;
+    if (isPopular !== undefined) updateData.isPopular = isPopular;
+    if (isNewOne !== undefined) updateData.isNewOne = isNewOne;
+    if (isVegetarian !== undefined) updateData.isVegetarian = isVegetarian;
+    if (isVegan !== undefined) updateData.isVegan = isVegan;
+    if (isGlutenFree !== undefined) updateData.isGlutenFree = isGlutenFree;
+    if (isLactoseFree !== undefined) updateData.isLactoseFree = isLactoseFree;
     
     const updatedProduct = await Product.findByIdAndUpdate(
       id,
