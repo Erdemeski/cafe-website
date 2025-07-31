@@ -17,6 +17,7 @@ const QrOrderPage = () => {
     const [securityCode, setSecurityCode] = useState("");
     const [error, setError] = useState("");
     const [isVerified, setIsVerified] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
     const dispatch = useDispatch();
     const tableCookie = useSelector(selectTableCookie);
@@ -96,6 +97,9 @@ const QrOrderPage = () => {
     // Cookie kontrolü (backend validasyonu ile)
     useEffect(() => {
         const validateCookieWithBackend = async () => {
+            // Kısa bir bekleme süresi ekle
+            await new Promise(resolve => setTimeout(resolve, 500));
+
             if (tableCookie.tableNumber === tableNumber && tableCookie.cookieNumber) {
                 console.log('Frontend cookie data:', {
                     expiresAt: tableCookie.expiresAt,
@@ -107,6 +111,7 @@ const QrOrderPage = () => {
                 if (!tableCookie.expiresAt || tableCookie.expiresAt <= Date.now()) {
                     console.log('Invalid expiresAt, using frontend validation');
                     dispatch(validateCookie());
+                    setIsLoading(false);
                     return;
                 }
 
@@ -156,6 +161,8 @@ const QrOrderPage = () => {
                 setIsVerified(false);
                 setShowSessionExpired(false);
             }
+
+            setIsLoading(false);
         };
 
         validateCookieWithBackend();
@@ -232,7 +239,7 @@ const QrOrderPage = () => {
         setLoadingCategories(true);
         setCategoriesError(null);
         try {
-            const res = await fetch("/api/categories?isActive=true");
+            const res = await fetch("/api/category/categories?isActive=true");
             const data = await res.json();
             if (res.ok) {
                 setCategories(data);
@@ -507,6 +514,40 @@ const QrOrderPage = () => {
 
         return categoryMatch && searchMatch;
     });
+
+    // Loading ekranı
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-[rgb(22,26,29)] relative isolate px-4 py-16 sm:py-24 lg:px-8">
+                {/* Dekoratif arka plan - farklılaştırılmış poligon ve gradient */}
+                <div
+                    aria-hidden="true"
+                    className="absolute inset-x-0 top-0 -z-50 transform-gpu overflow-hidden blur-3xl sm:-top-0"
+                >
+                    <div
+                        style={{
+                            clipPath:
+                                'polygon(40% 60%, 10% 600%, 95% 40%, 80% 60%, 100% 10%, 20% 110%, 40% 220%, 0% 80%, 50% 50%, 0% 0%)',
+                        }}
+                        className="relative left-[calc(50%-8rem)] aspect-[1155/678] w-[44rem] -translate-x-1/2 rotate-[-18deg] bg-gradient-to-bl from-[#99d40e] via-[#f728a7] to-[#1e90ff] opacity-40 sm:left-[calc(50%-16rem)] sm:w-[70rem] animate-pulse"
+                    />
+                </div>
+                <div className="mx-auto max-w-5xl text-center">
+                    <h2 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-gray-50 sm:text-5xl">QR Menü & Sipariş</h2>
+                    <div className="flex justify-center my-5">
+                        <span className="inline-block w-24 h-1 rounded bg-white dark:bg-gray-300"></span>
+                    </div>
+                    <Card className="w-full max-w-md mx-auto p-6 pt-4 shadow-lg rounded-lg bg-white dark:bg-[rgb(22,26,29)] flex flex-col items-center border-[1px] dark:border-gray-600">
+                        <div className="flex flex-col items-center gap-4">
+                            <Spinner size="xl" color="purple" />
+                            <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300">Oturum kontrol ediliyor...</h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Lütfen bekleyin</p>
+                        </div>
+                    </Card>
+                </div>
+            </div>
+        );
+    }
 
     if (!isVerified) {
         return (

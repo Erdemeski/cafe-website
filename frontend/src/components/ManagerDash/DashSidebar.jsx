@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { Button, Modal, Sidebar } from 'flowbite-react'
 import { HiAnnotation, HiArrowSmRight, HiChartPie, HiDocumentText, HiOutlineUserGroup, HiUser } from 'react-icons/hi'
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { signoutSuccess } from "../redux/user/userSlice";
+/* import { signoutSuccess } from "../redux/user/userSlice";
+ */
 import { useDispatch, useSelector } from "react-redux";
 import { HiOutlineExclamationCircle } from 'react-icons/hi';
 import { HiBanknotes } from "react-icons/hi2";
@@ -54,9 +55,6 @@ export default function DashSidebar() {
                                 <Sidebar.Item active={tab === 'dashboard' || !tab} icon={HiChartPie} as='div'>Dashboard</Sidebar.Item>
                             </Link>
                         )}
-                        <Link to='/dashboard?tab=profile'>
-                            <Sidebar.Item active={tab === 'profile'} icon={HiUser} label={currentUser.isAdmin ? 'Admin' : 'User'} labelColor={currentUser.isAdmin ? 'red' : 'dark'} as='div'>Profile</Sidebar.Item>
-                        </Link>
                         {!currentUser.isAdmin && (
                             <Link to='/dashboard?tab=bookings'>
                                 <Sidebar.Item active={tab === 'bookings' || !tab} icon={MdOutlineCommentBank} as='div'>Bookings</Sidebar.Item>

@@ -37,7 +37,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/table', tableRoutes);
 app.use('/api/order', orderRoutes);
 app.use('/api/product', productRoutes);
-app.use('/api', categoryRoutes);
+app.use('/api/category', categoryRoutes);
 
 
 app.use((err, req, res, next) => {

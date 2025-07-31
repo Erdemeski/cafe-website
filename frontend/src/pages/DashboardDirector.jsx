@@ -63,25 +63,25 @@ export default function DashboardDirector() {
               <div className='w-full flex justify-center mt-2'>
                 <div className='flex flex-wrap justify-center gap-6 transition-all duration-700 ease-in-out will-change-transform'>
                   {currentUser.isAdmin && (
-                    <Card onClick={() => navigate('/admin-dashboard')} className='flex flex-col gap-2 items-center justify-center cursor-pointer hover:bg-pink-100 dark:hover:bg-pink-900 rounded-2xl hover:scale-105 transition-all duration-300 shadow-md border border-pink-200 dark:border-pink-700 py-8 w-[200px] transform ease-in-out will-change-transform animate-bounceIn'>
+                    <Card onClick={() => navigate('/admin-dashboard?tab=dashboard')} className='flex flex-col gap-2 items-center justify-center cursor-pointer hover:bg-pink-100 dark:hover:bg-pink-900 rounded-2xl hover:scale-105 transition-all duration-300 shadow-md border border-pink-200 dark:border-pink-700 py-8 w-[200px] transform ease-in-out will-change-transform animate-bounceIn'>
                       <span className="text-3xl mb-2">🧑‍💻</span>
                       <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-50">Admin Dashboard</h3>
                     </Card>
                   )}
                   {currentUser.isManager && (
-                    <Card onClick={() => navigate('/manager-dashboard')} className='flex flex-col gap-2 items-center justify-center cursor-pointer hover:bg-green-100 dark:hover:bg-green-900 rounded-2xl hover:scale-105 transition-all duration-300 shadow-md border border-green-200 dark:border-green-700 py-8 w-[200px] transform ease-in-out will-change-transform animate-bounceIn'>
+                    <Card onClick={() => navigate('/manager-dashboard?tab=dashboard')} className='flex flex-col gap-2 items-center justify-center cursor-pointer hover:bg-green-100 dark:hover:bg-green-900 rounded-2xl hover:scale-105 transition-all duration-300 shadow-md border border-green-200 dark:border-green-700 py-8 w-[200px] transform ease-in-out will-change-transform animate-bounceIn'>
                       <span className="text-3xl mb-2">💼</span>
                       <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-50">Manager Dashboard</h3>
                     </Card>
                   )}
                   {currentUser.isWaiter && (
-                    <Card onClick={() => navigate('/waiter-dashboard')} className='flex flex-col gap-2 items-center justify-center cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900 rounded-2xl hover:scale-105 transition-all duration-300 shadow-md border border-blue-200 dark:border-blue-700 py-8 w-[200px] transform ease-in-out will-change-transform animate-bounceIn'>
+                    <Card onClick={() => navigate('/waiter-dashboard?tab=dashboard')} className='flex flex-col gap-2 items-center justify-center cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900 rounded-2xl hover:scale-105 transition-all duration-300 shadow-md border border-blue-200 dark:border-blue-700 py-8 w-[200px] transform ease-in-out will-change-transform animate-bounceIn'>
                       <span className="text-3xl mb-2">🤵</span>
                       <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-50">Waiter Dashboard</h3>
                     </Card>
                   )}
                   {currentUser.isReception && (
-                    <Card onClick={() => navigate('/reception-dashboard')} className='flex flex-col gap-2 items-center justify-center cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-900 rounded-2xl hover:scale-105 transition-all duration-300 shadow-md border border-yellow-200 dark:border-yellow-700 py-8 w-[200px] transform ease-in-out will-change-transform animate-bounceIn'>
+                    <Card onClick={() => navigate('/reception-dashboard?tab=dashboard')} className='flex flex-col gap-2 items-center justify-center cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-900 rounded-2xl hover:scale-105 transition-all duration-300 shadow-md border border-yellow-200 dark:border-yellow-700 py-8 w-[200px] transform ease-in-out will-change-transform animate-bounceIn'>
                       <span className="text-3xl mb-2">💁</span>
                       <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-50">Reception Dashboard</h3>
                     </Card>
