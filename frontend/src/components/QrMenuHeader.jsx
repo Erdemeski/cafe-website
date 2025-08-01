@@ -122,6 +122,7 @@ const QrMenuHeader = forwardRef(({ onHeightChange, onSearchbarToggle, searchTerm
                                 className='hidden lg:inline'
                                 value={searchTerm || ''}
                                 onChange={handleSearchChange}
+                                maxLength={25}
                                 color='gray'
                                 theme={{
                                     field: {
@@ -173,6 +174,7 @@ const QrMenuHeader = forwardRef(({ onHeightChange, onSearchbarToggle, searchTerm
                             value={searchTerm || ''}
                             onChange={handleSearchChange}
                             autoFocus={showSearchbar}
+                            maxLength={25}
                             color='gray'
                             theme={{
                                 field: {

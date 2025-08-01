@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from 'react'
 import { Button, Modal, Sidebar } from 'flowbite-react'
-import { HiAnnotation, HiArrowSmRight, HiChartPie, HiDocumentText, HiOutlineUserGroup, HiUser } from 'react-icons/hi'
+import { HiAnnotation, HiArrowSmLeft, HiArrowSmRight, HiChartPie, HiDocumentText, HiOutlineUserGroup, HiUser } from 'react-icons/hi'
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-/* import { signoutSuccess } from "../redux/user/userSlice";
- */
+import { signoutSuccess } from '../../redux/user/userSlice';
 import { useDispatch, useSelector } from "react-redux";
 import { HiOutlineExclamationCircle } from 'react-icons/hi';
 import { HiBanknotes } from "react-icons/hi2";
 import { MdOutlineCommentBank } from "react-icons/md";
 import { IoIosMail } from "react-icons/io";
 import { MdOutlineSettings } from "react-icons/md";
+import { BiDish } from "react-icons/bi";
+import { RiRestaurantLine } from "react-icons/ri";
 
 export default function DashSidebar() {
 
@@ -38,6 +39,7 @@ export default function DashSidebar() {
                 console.log(data.message);
             } else {
                 dispatch(signoutSuccess());
+                setShowSignout(false);
                 navigate('/');
             }
         } catch (error) {
@@ -47,63 +49,46 @@ export default function DashSidebar() {
 
     return (
         <div className='h-full'>
-            <Sidebar className='w-full md:w-56 h-full'>
+            <Sidebar
+                className='w-full md:w-56 h-full'
+                theme={{
+                    root: {
+                        inner: "h-full overflow-y-auto overflow-x-hidden rounded bg-gray-50 px-3 py-4 dark:bg-[rgb(32,38,43)] dark:border-b-2 dark:border-gray-700"
+                    },
+                    item: {
+                        base: "flex items-center justify-center rounded-lg p-2 text-sm font-normal text-gray-900 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700",
+                        active: "bg-gray-100 dark:bg-gray-700",
+                    },
+                    itemGroup: {
+                        base: "mt-2 space-y-2 border-t border-gray-200 pt-2 first:mt-0 first:border-t-0 first:pt-0 dark:border-gray-700"
+                    }
+                }}
+            >
                 <Sidebar.Items>
                     <Sidebar.ItemGroup className='flex flex-col gap-1'>
-                        {currentUser && currentUser.isAdmin && (
-                            <Link to='/dashboard?tab=dashboard'>
-                                <Sidebar.Item active={tab === 'dashboard' || !tab} icon={HiChartPie} as='div'>Dashboard</Sidebar.Item>
-                            </Link>
-                        )}
-                        {!currentUser.isAdmin && (
-                            <Link to='/dashboard?tab=bookings'>
-                                <Sidebar.Item active={tab === 'bookings' || !tab} icon={MdOutlineCommentBank} as='div'>Bookings</Sidebar.Item>
-                            </Link>
-                        )}
-                        {currentUser.isAdmin && (
-                            <Link to='/dashboard?tab=settings'>
-                                <Sidebar.Item active={tab === 'settings'} icon={MdOutlineSettings} as='div'>Settings</Sidebar.Item>
-                            </Link>
-                        )}
-
+                        <Sidebar.Item icon={HiArrowSmLeft} className='cursor-pointer' onClick={() => navigate('/dashboard-director')}>Dashboard Director</Sidebar.Item>
                     </Sidebar.ItemGroup>
-                    {currentUser.isAdmin && (
-                        <>
-                            <Sidebar.ItemGroup className='flex flex-col gap-1'>
-                                {currentUser.isAdmin && (
-                                    <Link to='/dashboard?tab=reservations'>
-                                        <Sidebar.Item active={tab === 'reservations'} icon={HiBanknotes} as='div'>Reservations</Sidebar.Item>
-                                    </Link>
-                                )}
-
-                            </Sidebar.ItemGroup>
-                            <Sidebar.ItemGroup className='flex flex-col gap-1'>
-                                {currentUser.isAdmin && (
-                                    <Link to='/dashboard?tab=advertisements'>
-                                        <Sidebar.Item active={tab === 'advertisements'} icon={HiDocumentText} as='div'>Advertisements</Sidebar.Item>
-                                    </Link>
-                                )}
-                                {currentUser.isAdmin && (
-                                    <Link to='/dashboard?tab=users'>
-                                        <Sidebar.Item active={tab === 'users'} icon={HiOutlineUserGroup} as='div'>Users</Sidebar.Item>
-                                    </Link>
-                                )}
-                                {currentUser.isAdmin && (
-                                    <Link to='/dashboard?tab=comments'>
-                                        <Sidebar.Item active={tab === 'comments'} icon={HiAnnotation} as='div'>Comments</Sidebar.Item>
-                                    </Link>
-                                )}
-                                {currentUser.isAdmin && (
-                                    <Link to='/dashboard?tab=feedbacks'>
-                                        <Sidebar.Item active={tab === 'feedbacks'} icon={IoIosMail} as='div'>Feedbacks</Sidebar.Item>
-                                    </Link>
-                                )}
-                            </Sidebar.ItemGroup>
-                        </>
-                    )}
+                    <Sidebar.ItemGroup className='flex flex-col gap-1'>
+                        {currentUser && currentUser.isWaiter && (
+                            <Link to='/waiter-dashboard?tab=dashboard'>
+                                <Sidebar.Item active={tab === 'dashboard' || !tab} icon={HiChartPie} label={'Waiter'} labelColor={'red'} as='div'>Dashboard</Sidebar.Item>
+                            </Link>
+                        )}
+                        {currentUser.isWaiter && (
+                            <Link to='/waiter-dashboard?tab=orders'>
+                                <Sidebar.Item active={tab === 'orders'} icon={RiRestaurantLine} as='div'>Orders</Sidebar.Item>
+                            </Link>
+                        )}
+                        {currentUser.isWaiter && (
+                            <Link to='/waiter-dashboard?tab=waiter-calls'>
+                                <Sidebar.Item active={tab === 'waiter-calls'} icon={BiDish} as='div'>Waiter Calls</Sidebar.Item>
+                            </Link>
+                        )}
+                    </Sidebar.ItemGroup>
                     <Sidebar.ItemGroup className='flex flex-col gap-1'>
                         <Sidebar.Item icon={HiArrowSmRight} className='cursor-pointer' onClick={() => setShowSignout(true)}>Sign Out</Sidebar.Item>
                     </Sidebar.ItemGroup>
+
                 </Sidebar.Items>
             </Sidebar>
 

@@ -80,6 +80,14 @@ const QrOrderPage = () => {
 
             // Scroll event'ini engelle
             const preventScroll = (e) => {
+                // Modal içindeki scroll'a izin ver
+                const target = e.target;
+                const modalContent = target.closest('.modal-content') || target.closest('[class*="overflow-y-auto"]');
+                
+                if (modalContent) {
+                    return true; // Modal içindeyse scroll'a izin ver
+                }
+                
                 e.preventDefault();
                 e.stopPropagation();
                 return false;
@@ -590,6 +598,11 @@ const QrOrderPage = () => {
         }
     }, [isVerified, isCookieActive, lastActivityTime, dispatch]);
 
+    // isVerified değiştiğinde otomatik olarak sayfanın en üstüne scroll yap
+    useEffect(() => {
+        scrollToTop();
+    }, [isVerified]);
+
     // Cookie süresi dolduğunda anında yönlendirme (backend ile)
     useEffect(() => {
         if (tableCookie.cookieNumber && isVerified) {
@@ -611,7 +624,6 @@ const QrOrderPage = () => {
                         setIsVerified(false);
                         setShowSessionExpired(true);
                         dispatch(validateCookie());
-                        scrollToTop();
                     }
                 } catch (err) {
                     // Network hatası durumunda frontend validasyonuna güven
@@ -619,7 +631,6 @@ const QrOrderPage = () => {
                         dispatch(validateCookie());
                         setIsVerified(false);
                         setShowSessionExpired(true);
-                        scrollToTop();
                     }
                 }
             };
@@ -735,6 +746,16 @@ const QrOrderPage = () => {
                                 onChange={(e) => setSecurityCode(e.target.value)}
                                 required
                                 className="w-full"
+                                color='gray'
+                                theme={{
+                                    field: {
+                                        input: {
+                                            colors: {
+                                                gray: "border-gray-300 bg-gray-50 text-gray-900 focus:border-blue-400 focus:ring-blue-400 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-400 dark:placeholder-gray-400 dark:focus:border-gray-500 dark:focus:ring-[rgb(22,26,29)]"
+                                            }
+                                        }
+                                    }
+                                }}
                             />
                             <Button type="submit" gradientDuoTone="purpleToBlue" outline className="w-1/4">
                                 Doğrula
@@ -1033,7 +1054,7 @@ const QrOrderPage = () => {
                                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
                                 className="fixed inset-4 z-50 flex items-center justify-center p-4"
                             >
-                                <div className="bg-white dark:bg-[rgb(22,26,29)] rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-700">
+                                <div className="modal-content bg-white dark:bg-[rgb(22,26,29)] rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-700">
                                     {/* Modal Header */}
                                     <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                                         <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-50">Sepet</h3>
@@ -1185,7 +1206,7 @@ const QrOrderPage = () => {
                                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
                                 className="fixed inset-4 z-50 flex items-center justify-center p-4"
                             >
-                                <div className="bg-white dark:bg-[rgb(22,26,29)] rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-700">
+                                <div className="modal-content bg-white dark:bg-[rgb(22,26,29)] rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-700">
                                     {/* Modal Header */}
                                     <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                                         <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-50">Sipariş Detayları</h3>
@@ -1326,7 +1347,7 @@ const QrOrderPage = () => {
                                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
                                 className="fixed inset-4 z-50 flex items-center justify-center p-4"
                             >
-                                <div className="bg-white dark:bg-[rgb(22,26,29)] rounded-2xl shadow-2xl w-full max-w-sm max-h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-700">
+                                <div className="modal-content bg-white dark:bg-[rgb(22,26,29)] rounded-2xl shadow-2xl w-full max-w-sm max-h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-700">
                                     {/* Modal Header */}
                                     <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                                         <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-50">Garson Çağır</h3>
@@ -1432,7 +1453,7 @@ const QrOrderPage = () => {
                                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
                                 className="fixed inset-4 z-50 flex items-center justify-center p-4"
                             >
-                                <div className="bg-white dark:bg-[rgb(22,26,29)] rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-700">
+                                <div className="modal-content bg-white dark:bg-[rgb(22,26,29)] rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-700">
                                     {/* Modal Header */}
                                     <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                                         <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-50">Sipariş Geçmişi</h3>

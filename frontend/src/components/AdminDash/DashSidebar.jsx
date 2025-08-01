@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Button, Modal, Sidebar } from 'flowbite-react'
-import { HiAnnotation, HiArrowSmRight, HiChartPie, HiDocumentText, HiOutlineUserGroup, HiUser } from 'react-icons/hi'
+import { HiAnnotation, HiArrowSmLeft, HiArrowSmRight, HiChartPie, HiDocumentText, HiOutlineUserGroup, HiUser } from 'react-icons/hi'
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { signoutSuccess } from '../../redux/user/userSlice';
 import { useDispatch, useSelector } from "react-redux";
@@ -54,12 +54,18 @@ export default function DashSidebar() {
                         inner: "h-full overflow-y-auto overflow-x-hidden rounded bg-gray-50 px-3 py-4 dark:bg-[rgb(32,38,43)] dark:border-b-2 dark:border-gray-700"
                     },
                     item: {
-                        base: "flex items-center justify-center rounded-lg p-2 text-base font-normal text-gray-900 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700",
+                        base: "flex items-center justify-center rounded-lg p-2 text-sm font-normal text-gray-900 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700",
                         active: "bg-gray-100 dark:bg-gray-700"
+                    },
+                    itemGroup: {
+                        base: "mt-2 space-y-2 border-t border-gray-200 pt-2 first:mt-0 first:border-t-0 first:pt-0 dark:border-gray-700"
                     }
                 }}
             >
                 <Sidebar.Items>
+                    <Sidebar.ItemGroup className='flex flex-col gap-1'>
+                        <Sidebar.Item icon={HiArrowSmLeft} className='cursor-pointer' onClick={() => navigate('/dashboard-director')}>Dashboard Director</Sidebar.Item>
+                    </Sidebar.ItemGroup>
                     <Sidebar.ItemGroup className='flex flex-col gap-1'>
                         {currentUser && currentUser.isAdmin && (
                             <Link to='/admin-dashboard?tab=dashboard'>
@@ -74,7 +80,7 @@ export default function DashSidebar() {
 
                         {currentUser.isAdmin && (
                             <Link to='/admin-dashboard?tab=users'>
-                                <Sidebar.Item active={tab === 'users'} icon={HiOutlineUserGroup} as='div'>Users</Sidebar.Item>
+                                <Sidebar.Item active={tab === 'users'} icon={HiOutlineUserGroup} as='div'>Staffs</Sidebar.Item>
                             </Link>
                         )}
                     </Sidebar.ItemGroup>
