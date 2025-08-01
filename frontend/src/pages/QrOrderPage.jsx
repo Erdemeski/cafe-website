@@ -45,6 +45,10 @@ const QrOrderPage = () => {
     const [orderNotes, setOrderNotes] = useState("");
     const [waiterNotes, setWaiterNotes] = useState("");
 
+    // Ürün detay modal state'leri
+    const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+    const [selectedProduct, setSelectedProduct] = useState(null);
+
     // Cookie süresini gerçek zamanlı güncelle
     useEffect(() => {
         if (isVerified && isCookieActive && tableCookie.expiresAt) {
@@ -60,9 +64,71 @@ const QrOrderPage = () => {
         }
     }, [isVerified, isCookieActive, tableCookie.expiresAt]);
 
-    // Searchbar açıldığında modal'ları kapat
+    // Modal açıkken scroll'u engelle ama scrollbar'ı göster
+    useEffect(() => {
+        const isAnyModalOpen = isCartOpen || isProductModalOpen || isWaiterModalOpen ||
+            isHistoryModalOpen || isOrderDetailsModalOpen;
+
+        if (isAnyModalOpen) {
+            // Modal açıkken scrollbar'ı görünür tut ama scroll'u engelle
+            document.body.style.overflowY = 'scroll';
+            // Scroll pozisyonunu kaydet
+            const scrollY = window.scrollY;
+            document.body.style.position = 'fixed';
+            document.body.style.top = `-${scrollY}px`;
+            document.body.style.width = '100%';
+
+            // Scroll event'ini engelle
+            const preventScroll = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            };
+
+            // Scroll event'lerini engelle
+            document.addEventListener('wheel', preventScroll, { passive: false });
+            document.addEventListener('touchmove', preventScroll, { passive: false });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'PageUp' || e.key === 'PageDown' || e.key === 'Home' || e.key === 'End') {
+                    e.preventDefault();
+                }
+            });
+
+            // Cleanup function'ı güncelle
+            return () => {
+                document.removeEventListener('wheel', preventScroll);
+                document.removeEventListener('touchmove', preventScroll);
+            };
+        } else {
+            // Modal kapandığında scroll'u geri aç
+            const savedScrollY = parseInt(document.body.style.top || '0') * -1;
+            document.body.style.overflow = '';
+            document.body.style.position = '';
+            document.body.style.top = '';
+            document.body.style.width = '';
+            // Kaydedilen scroll pozisyonuna geri dön
+            window.scrollTo(0, savedScrollY);
+        }
+
+        // Cleanup function
+        return () => {
+            document.body.style.overflow = '';
+            document.body.style.position = '';
+            document.body.style.top = '';
+            document.body.style.width = '';
+        };
+    }, [isCartOpen, isProductModalOpen, isWaiterModalOpen, isHistoryModalOpen, isOrderDetailsModalOpen]);
+
+    // Searchbar açıldığında tüm modalları kapat
     const handleSearchbarToggle = (isOpen) => {
         if (isOpen) {
+            // Tüm modalları kapat
+            setIsCartOpen(false);
+            setIsProductModalOpen(false);
+            setIsWaiterModalOpen(false);
+            setIsHistoryModalOpen(false);
+            setIsOrderDetailsModalOpen(false);
+            setSelectedProduct(null);
             setCloseProductModals(true);
             setTimeout(() => setCloseProductModals(false), 100);
         }
@@ -77,6 +143,9 @@ const QrOrderPage = () => {
         }
     };
 
+    useEffect(() => {
+        fetchOrderHistory();
+    }, [tableNumber, window.location.reload]);
 
     useEffect(() => {
         const checkTable = async () => {
@@ -303,6 +372,69 @@ const QrOrderPage = () => {
         });
     };
 
+    // Ürün detay modalını aç
+    const openProductModal = (product) => {
+        setSelectedProduct(product);
+        setIsProductModalOpen(true);
+        setCloseProductModals(true);
+        setTimeout(() => setCloseProductModals(false), 100);
+    };
+
+    // Ürün detay modalını kapat
+    const closeProductModal = () => {
+        setIsProductModalOpen(false);
+        setSelectedProduct(null);
+    };
+
+    const closeCartModal = () => {
+        setIsCartOpen(false);
+        setIsProductModalOpen(false);
+        setSelectedProduct(null);
+    };
+
+    const closeWaiterModal = () => {
+        setIsWaiterModalOpen(false);
+        setWaiterNotes("");
+    };
+
+    const closeHistoryModal = () => {
+        setIsHistoryModalOpen(false);
+    };
+
+    const closeOrderDetailsModal = () => {
+        setIsOrderDetailsModalOpen(false);
+        setCustomerName("");
+        setOrderNotes("");
+    };
+
+    // Cart açıldığında searchbar'ı kapat
+    const openCartModal = () => {
+        setIsCartOpen(true);
+        // Header'daki searchbar'ı kapat
+        if (headerRef.current && headerRef.current.closeSearchbar) {
+            headerRef.current.closeSearchbar();
+        }
+    };
+
+    // Waiter modal açıldığında searchbar'ı kapat
+    const openWaiterModal = () => {
+        setIsWaiterModalOpen(true);
+        // Header'daki searchbar'ı kapat
+        if (headerRef.current && headerRef.current.closeSearchbar) {
+            headerRef.current.closeSearchbar();
+        }
+    };
+
+    // History modal açıldığında searchbar'ı kapat
+    const openHistoryModal = () => {
+        setIsHistoryModalOpen(true);
+        fetchOrderHistory();
+        // Header'daki searchbar'ı kapat
+        if (headerRef.current && headerRef.current.closeSearchbar) {
+            headerRef.current.closeSearchbar();
+        }
+    };
+
     const removeFromCart = (id) => {
         setCart((prev) => prev.filter((item) => item._id !== id));
     };
@@ -359,6 +491,10 @@ const QrOrderPage = () => {
     const handleOrder = async () => {
         // Sipariş detayları modalını aç
         setIsOrderDetailsModalOpen(true);
+        // Header'daki searchbar'ı kapat
+        if (headerRef.current && headerRef.current.closeSearchbar) {
+            headerRef.current.closeSearchbar();
+        }
     };
 
     const submitOrder = async () => {
@@ -405,6 +541,8 @@ const QrOrderPage = () => {
                         setOrderSuccess(false);
                         setCloseProductModals(false);
                     }, 3000);
+
+                    fetchOrderHistory();
                 } else {
                     alert(data.message || "Sipariş gönderilemedi.");
                 }
@@ -473,6 +611,7 @@ const QrOrderPage = () => {
                         setIsVerified(false);
                         setShowSessionExpired(true);
                         dispatch(validateCookie());
+                        scrollToTop();
                     }
                 } catch (err) {
                     // Network hatası durumunda frontend validasyonuna güven
@@ -480,6 +619,7 @@ const QrOrderPage = () => {
                         dispatch(validateCookie());
                         setIsVerified(false);
                         setShowSessionExpired(true);
+                        scrollToTop();
                     }
                 }
             };
@@ -617,6 +757,7 @@ const QrOrderPage = () => {
                 onSearchbarToggle={handleSearchbarToggle}
                 searchTerm={searchTerm}
                 onSearchChange={handleSearchChange}
+                onCartClose={closeCartModal}
             />
             <div className="flex flex-col items-center min-h-[95vh] bg-gray-100 dark:bg-[rgb(22,26,29)] relative isolate py-4 px-1">
                 {/* Dekoratif arka plan - farklılaştırılmış poligon ve gradient */}
@@ -716,7 +857,7 @@ const QrOrderPage = () => {
                     {searchTerm.trim() && (
                         <motion.div
                             initial={{ opacity: 0, height: 0, y: -20 }}
-                            animate={{ opacity: 1, height: 53, y: 0 }}
+                            animate={{ opacity: 1, height: '100%', y: 0 }}
                             transition={{ duration: 0.5, ease: "easeInOut" }}
                             className="w-11/12 mx-auto mb-4 px-4 py-3 bg-blue-50/70 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg shadow-sm"
                         >
@@ -781,6 +922,7 @@ const QrOrderPage = () => {
                                                     isNewOne={p.isNewOne}
                                                     category={p.category}
                                                     headerRef={headerRef}
+                                                    onProductClick={() => openProductModal(p)}
                                                 />
                                             </motion.div>
                                         );
@@ -817,11 +959,7 @@ const QrOrderPage = () => {
                         animate={{ opacity: 1, scale: 1, x: 0 }}
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
-                        onClick={() => {
-                            setIsWaiterModalOpen(true);
-                            setCloseProductModals(true);
-                            setTimeout(() => setCloseProductModals(false), 100);
-                        }}
+                        onClick={openWaiterModal}
                         className="bg-orange-500 hover:bg-orange-600 text-white rounded-full p-3 shadow-lg border-2 border-white dark:border-gray-700 transition-all duration-300"
                     >
                         <FaUserTie className="w-5 h-5 text-white" />
@@ -833,12 +971,7 @@ const QrOrderPage = () => {
                         animate={{ opacity: 1, scale: 1, x: 0 }}
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
-                        onClick={() => {
-                            setIsHistoryModalOpen(true);
-                            fetchOrderHistory();
-                            setCloseProductModals(true);
-                            setTimeout(() => setCloseProductModals(false), 100);
-                        }}
+                        onClick={openHistoryModal}
                         className="bg-purple-500 hover:bg-purple-600 text-white rounded-full p-3 shadow-lg border-2 border-white dark:border-gray-700 transition-all duration-300"
                     >
                         <div className="relative">
@@ -861,11 +994,7 @@ const QrOrderPage = () => {
                         animate={{ opacity: 1, scale: 1, x: 0 }}
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
-                        onClick={() => {
-                            setIsCartOpen(true);
-                            setCloseProductModals(true);
-                            setTimeout(() => setCloseProductModals(false), 100);
-                        }}
+                        onClick={openCartModal}
                         className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg border-2 border-white dark:border-gray-700 transition-all duration-300"
                     >
                         <div className="relative">
@@ -892,8 +1021,8 @@ const QrOrderPage = () => {
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                onClick={() => setIsCartOpen(false)}
-                                className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                                onClick={closeCartModal}
+                                className="fixed inset-0 bg-black bg-opacity-50 z-40 backdrop-blur-[2px]"
                             />
 
                             {/* Modal */}
@@ -911,7 +1040,7 @@ const QrOrderPage = () => {
                                         <motion.button
                                             whileHover={{ scale: 1.1 }}
                                             whileTap={{ scale: 0.9 }}
-                                            onClick={() => setIsCartOpen(false)}
+                                            onClick={closeCartModal}
                                             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                                         >
                                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1044,8 +1173,8 @@ const QrOrderPage = () => {
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                onClick={() => setIsOrderDetailsModalOpen(false)}
-                                className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                                onClick={closeOrderDetailsModal}
+                                className="fixed inset-0 bg-black bg-opacity-50 z-40 backdrop-blur-[2px]"
                             />
 
                             {/* Modal */}
@@ -1063,7 +1192,7 @@ const QrOrderPage = () => {
                                         <motion.button
                                             whileHover={{ scale: 1.1 }}
                                             whileTap={{ scale: 0.9 }}
-                                            onClick={() => setIsOrderDetailsModalOpen(false)}
+                                            onClick={closeOrderDetailsModal}
                                             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                                         >
                                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1150,7 +1279,7 @@ const QrOrderPage = () => {
                                             <motion.button
                                                 whileHover={{ scale: 1.02 }}
                                                 whileTap={{ scale: 0.98 }}
-                                                onClick={() => setIsOrderDetailsModalOpen(false)}
+                                                onClick={closeOrderDetailsModal}
                                                 className="flex-1 bg-gray-300 text-gray-700 py-3 px-2 rounded-lg text-sm font-semibold hover:bg-gray-400 transition-colors"
                                             >
                                                 İptal
@@ -1185,8 +1314,8 @@ const QrOrderPage = () => {
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                onClick={() => setIsWaiterModalOpen(false)}
-                                className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                                onClick={closeWaiterModal}
+                                className="fixed inset-0 bg-black bg-opacity-50 z-40 backdrop-blur-[2px]"
                             />
 
                             {/* Modal */}
@@ -1204,7 +1333,7 @@ const QrOrderPage = () => {
                                         <motion.button
                                             whileHover={{ scale: 1.1 }}
                                             whileTap={{ scale: 0.9 }}
-                                            onClick={() => setIsWaiterModalOpen(false)}
+                                            onClick={closeWaiterModal}
                                             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                                         >
                                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1261,10 +1390,7 @@ const QrOrderPage = () => {
                                             <motion.button
                                                 whileHover={{ scale: 1.02 }}
                                                 whileTap={{ scale: 0.98 }}
-                                                onClick={() => {
-                                                    setIsWaiterModalOpen(false);
-                                                    setWaiterNotes("");
-                                                }}
+                                                onClick={closeWaiterModal}
                                                 className="flex-1 bg-gray-300 text-gray-700 py-3 px-4 rounded-lg font-semibold hover:bg-gray-400 transition-colors"
                                             >
                                                 İptal
@@ -1294,8 +1420,8 @@ const QrOrderPage = () => {
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                onClick={() => setIsHistoryModalOpen(false)}
-                                className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                                onClick={closeHistoryModal}
+                                className="fixed inset-0 bg-black bg-opacity-50 z-40 backdrop-blur-[2px]"
                             />
 
                             {/* Modal */}
@@ -1313,7 +1439,7 @@ const QrOrderPage = () => {
                                         <motion.button
                                             whileHover={{ scale: 1.1 }}
                                             whileTap={{ scale: 0.9 }}
-                                            onClick={() => setIsHistoryModalOpen(false)}
+                                            onClick={closeHistoryModal}
                                             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                                         >
                                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1401,6 +1527,163 @@ const QrOrderPage = () => {
                                                 <p className="text-sm">İlk siparişinizi verdiğinizde burada görünecek</p>
                                             </motion.div>
                                         )}
+                                    </div>
+                                </div>
+                            </motion.div>
+                        </>
+                    )}
+                </AnimatePresence>
+
+                {/* Ürün Detay Modal */}
+                <AnimatePresence>
+                    {isProductModalOpen && selectedProduct && (
+                        <>
+                            {/* Backdrop */}
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                onClick={closeProductModal}
+                                className="fixed inset-0 bg-black bg-opacity-50 z-40 backdrop-blur-[2px]"
+                            />
+
+                            {/* Modal */}
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.8, y: 50 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.8, y: 50 }}
+                                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                                className="fixed inset-4 z-50 flex items-center justify-center p-4 pt-16 sm:pt-4"
+                            >
+                                <div className="bg-white dark:bg-[rgb(22,26,29)] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-gray-200 dark:border-gray-700">
+                                    {/* Modal Header */}
+                                    <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                                        <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-50">Ürün Detayları</h3>
+                                        <motion.button
+                                            whileHover={{ scale: 1.1 }}
+                                            whileTap={{ scale: 0.9 }}
+                                            onClick={closeProductModal}
+                                            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                        >
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </motion.button>
+                                    </div>
+
+                                    {/* Modal Body */}
+                                    <div className="p-6 overflow-y-auto max-h-[67vh] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                            {/* Ürün Görseli */}
+                                            <div className="relative">
+                                                <motion.img
+                                                    initial={{ opacity: 0, scale: 0.9 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    transition={{ duration: 0.3 }}
+                                                    src={selectedProduct.image || 'https://us.123rf.com/450wm/zhemchuzhina/zhemchuzhina1509/zhemchuzhina150900006/44465417-food-and-drink-outline-seamless-pattern-hand-drawn-kitchen-background-in-black-and-white-vector.jpg'}
+                                                    alt={selectedProduct.ProductName}
+                                                    className="w-full h-64 lg:h-80 object-cover rounded-xl shadow-lg"
+                                                />
+                                            </div>
+
+                                            {/* Ürün Bilgileri */}
+                                            <div className="flex flex-col space-y-4">
+                                                <motion.div
+                                                    initial={{ opacity: 0, x: 20 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    transition={{ delay: 0.1 }}
+                                                >
+                                                    <div className='mb-2'>
+                                                        <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white mb-2">
+                                                            {selectedProduct.ProductName}
+                                                        </h2>
+                                                        <div className="w-20 h-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full"></div>
+                                                    </div>
+                                                    <p className="text-gray-600 dark:text-gray-300 text-lg leading-relaxed">
+                                                        {selectedProduct.Description || "Lezzetli bir ürün"}
+                                                    </p>
+                                                </motion.div>
+
+                                                {/* Ürün Özellikleri */}
+                                                <motion.div
+                                                    initial={{ opacity: 0, x: 20 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    transition={{ delay: 0.2 }}
+                                                    className="space-y-1"
+                                                >
+                                                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                                                        <span className="text-gray-700 dark:text-gray-300 font-medium">Fiyat:</span>
+                                                        <span className="text-xl font-bold text-blue-600 dark:text-blue-400">{selectedProduct.Price} ₺</span>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                                                        <span className="text-gray-700 dark:text-gray-300 font-medium">Kategori:</span>
+                                                        <span className="text-gray-900 dark:text-gray-100">{selectedProduct.category?.name || 'Kategori Yok'}</span>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                                                        <span className="text-gray-700 dark:text-gray-300 font-medium">Hazırlık Süresi:</span>
+                                                        <span className="text-gray-900 dark:text-gray-100">5-10 dakika</span>
+                                                    </div>
+                                                </motion.div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Modal Footer */}
+                                    <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 20 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: 0.3 }}
+                                            className="space-y-4"
+                                        >
+                                            {(() => {
+                                                const cartItem = cart.find((item) => item._id === selectedProduct._id);
+                                                return cartItem ? (
+                                                    <div className="flex items-center justify-center space-x-4">
+                                                        <motion.button
+                                                            whileHover={{ scale: 1.1 }}
+                                                            whileTap={{ scale: 0.9 }}
+                                                            className="w-12 h-12 pb-1 pl-0.5 rounded-full bg-gray-200 dark:bg-gray-700 text-2xl font-bold text-blue-600 flex items-center justify-center hover:bg-blue-100 dark:hover:bg-gray-600 transition-all duration-200"
+                                                            onClick={() => {
+                                                                if (cartItem.qty > 1) {
+                                                                    setCart(prev => prev.map(item =>
+                                                                        item._id === selectedProduct._id
+                                                                            ? { ...item, qty: item.qty - 1 }
+                                                                            : item
+                                                                    ));
+                                                                } else {
+                                                                    removeFromCart(selectedProduct._id);
+                                                                }
+                                                            }}
+                                                        >
+                                                            -
+                                                        </motion.button>
+                                                        <span className="text-3xl font-bold text-gray-900 dark:text-white min-w-[60px] text-center">{cartItem.qty}</span>
+                                                        <motion.button
+                                                            whileHover={{ scale: 1.1 }}
+                                                            whileTap={{ scale: 0.9 }}
+                                                            className="w-12 h-12 pb-1 pl-0.5 rounded-full bg-gradient-to-br from-purple-600 to-cyan-500 text-white text-2xl font-bold flex items-center justify-center hover:from-purple-700 hover:to-cyan-600 transition-all duration-200"
+                                                            onClick={() => addToCart(selectedProduct)}
+                                                        >
+                                                            +
+                                                        </motion.button>
+                                                    </div>
+                                                ) : (
+                                                    <motion.button
+                                                        whileHover={{ scale: 1.02 }}
+                                                        whileTap={{ scale: 0.98 }}
+                                                        onClick={() => addToCart(selectedProduct)}
+                                                        className="w-full"
+                                                    >
+                                                        <Button gradientDuoTone='purpleToBlue' size='lg' className='w-full text-white font-semibold text-xl'>
+                                                            <FaCartPlus className='w-6 h-6 mr-2' /> Sepete Ekle
+                                                        </Button>
+                                                    </motion.button>
+                                                );
+                                            })()}
+                                        </motion.div>
                                     </div>
                                 </div>
                             </motion.div>

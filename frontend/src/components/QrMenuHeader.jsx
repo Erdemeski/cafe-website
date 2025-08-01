@@ -14,7 +14,7 @@ import { signoutSuccess } from '../redux/user/userSlice';
 import { HiOutlineExclamationCircle } from 'react-icons/hi'
 import { AiOutlineSearch } from 'react-icons/ai'
 
-const QrMenuHeader = forwardRef(({ onHeightChange, onSearchbarToggle, searchTerm, onSearchChange }, ref) => {
+const QrMenuHeader = forwardRef(({ onHeightChange, onSearchbarToggle, searchTerm, onSearchChange, onCartClose }, ref) => {
 
     const dispatch = useDispatch();
     const path = useLocation().pathname;
