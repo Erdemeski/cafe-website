@@ -19,6 +19,10 @@ const categorySchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    order: {
+        type: Number,
+        default: 0
+    }
 }, { timestamps: true });
 
 const Category = mongoose.model('Category', categorySchema);

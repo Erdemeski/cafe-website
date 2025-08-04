@@ -5,6 +5,7 @@ import {
     getCategory, 
     updateCategory, 
     deleteCategory, 
+    reorderCategories
 } from '../controllers/category.controller.js';
 import { verifyToken, verifyAdmin } from '../utils/verifyUser.js';
 
@@ -18,8 +19,6 @@ router.get('/categories/:id', getCategory);
 router.post('/categories', createCategory);
 router.put('/categories/:id', verifyToken, verifyAdmin, updateCategory);
 router.delete('/categories/:id', verifyToken, verifyAdmin, deleteCategory);
-
-
-
+router.put('/reorder', verifyToken, verifyAdmin, reorderCategories);
 
 export default router; 

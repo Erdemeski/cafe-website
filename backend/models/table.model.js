@@ -9,6 +9,10 @@ const tableSchema = new mongoose.Schema({
   securityCode: {
     type: String,
     required: true
+  },
+  hashedTableNumber: {
+    type: String,
+    required: true
   }
 }, { timestamps: true });
 

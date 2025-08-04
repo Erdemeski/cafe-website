@@ -83,11 +83,11 @@ const QrOrderPage = () => {
                 // Modal içindeki scroll'a izin ver
                 const target = e.target;
                 const modalContent = target.closest('.modal-content') || target.closest('[class*="overflow-y-auto"]');
-                
+
                 if (modalContent) {
                     return true; // Modal içindeyse scroll'a izin ver
                 }
-                
+
                 e.preventDefault();
                 e.stopPropagation();
                 return false;
@@ -664,6 +664,20 @@ const QrOrderPage = () => {
         }
 
         return categoryMatch && searchMatch;
+    }).sort((a, b) => {
+        // Kategori order'ına göre sırala
+        const categoryA = categories.find(cat => cat._id === a.category?._id);
+        const categoryB = categories.find(cat => cat._id === b.category?._id);
+
+        const orderA = categoryA?.order || 0;
+        const orderB = categoryB?.order || 0;
+
+        if (orderA !== orderB) {
+            return orderA - orderB;
+        }
+
+        // Aynı kategori içinde oluşturulma tarihine göre sırala (yeni önce)
+        return new Date(b.createdAt) - new Date(a.createdAt);
     });
 
     // Loading ekranı
@@ -864,6 +878,7 @@ const QrOrderPage = () => {
                                         <motion.span
                                             animate={selectedCategory === cat.key ? { rotate: [0, 10, -10, 0] } : {}}
                                             transition={{ duration: 0.5, repeat: selectedCategory === cat.key ? Infinity : 0, repeatDelay: 2 }}
+                                            className="text-xl"
                                         >
                                             {cat.icon}
                                         </motion.span>
@@ -902,14 +917,26 @@ const QrOrderPage = () => {
                         </motion.div>
                     )}
 
-                    <div className="min-h-[50vh] w-full mb-8 mt-5 columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
-                        {loadingProducts ? (
-                            <div className="flex items-center justify-center h-full">
-                                <Spinner size="lg" className="mr-2" /> Ürünler yükleniyor...
-                            </div>
-                        ) : filteredProducts.length > 0 ? (
-                            <AnimatePresence mode="wait">
-                                <div className="w-full" key={selectedCategory}>
+                    <div className="min-h-[50vh] w-full mb-8 mt-5">
+                        <AnimatePresence mode="wait">
+                            {loadingProducts ? (
+                                <motion.div
+                                    key="loading"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="flex items-center justify-center h-full"
+                                >
+                                    <Spinner size="lg" className="mr-2" /> Ürünler yükleniyor...
+                                </motion.div>
+                            ) : filteredProducts.length > 0 ? (
+                                <motion.div
+                                    key="products"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mx-3"
+                                >
                                     {filteredProducts.map((p, index) => {
                                         const cartItem = cart.find((item) => item._id === p._id);
                                         return (
@@ -920,12 +947,12 @@ const QrOrderPage = () => {
                                                 exit={{ opacity: 0, scale: 0.8, y: -50 }}
                                                 transition={{
                                                     duration: 0.05,
-                                                    ease: "easeOut",
+                                                    ease: "easeInOut",
                                                     delay: index * 0.05,
                                                     type: "spring",
                                                     stiffness: 58
                                                 }}
-                                                className="mb-6 mx-2 sm:mx-4 break-inside-avoid"
+                                                className="w-full"
                                             >
                                                 <ProductCard
                                                     image={p.image || 'https://us.123rf.com/450wm/zhemchuzhina/zhemchuzhina1509/zhemchuzhina150900006/44465417-food-and-drink-outline-seamless-pattern-hand-drawn-kitchen-background-in-black-and-white-vector.jpg'}
@@ -948,11 +975,10 @@ const QrOrderPage = () => {
                                             </motion.div>
                                         );
                                     })}
-                                </div>
-                            </AnimatePresence>
-                        ) : (
-                            <AnimatePresence mode="wait">
+                                </motion.div>
+                            ) : (
                                 <motion.div
+                                    key="no-products"
                                     initial={{ opacity: 0, y: 50 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.8, y: -50 }}
@@ -967,8 +993,8 @@ const QrOrderPage = () => {
                                         }
                                     </p>
                                 </motion.div>
-                            </AnimatePresence>
-                        )}
+                            )}
+                        </AnimatePresence>
                     </div>
                 </div>
 

@@ -61,7 +61,7 @@ export const getCategory = async (req, res, next) => {
 // Update a category
 export const updateCategory = async (req, res, next) => {
     try {
-        const { name, description, image, isActive, } = req.body;
+        const { name, description, image, isActive, updateProducts } = req.body;
         
         // Check if category exists
         const category = await Category.findById(req.params.id);
@@ -78,6 +78,20 @@ export const updateCategory = async (req, res, next) => {
             if (existingCategory) {
                 return next(errorHandler(400, 'Category with this name already exists'));
             }
+        }
+
+        // Check if isActive status is being changed and updateProducts is requested
+        const isActiveStatusChanged = category.isActive !== isActive;
+        
+        if (isActiveStatusChanged && updateProducts) {
+            // Import Product model
+            const Product = (await import('../models/product.model.js')).default;
+            
+            // Update all products in this category to match the new isActive status
+            await Product.updateMany(
+                { category: req.params.id },
+                { isActive: isActive }
+            );
         }
 
         const updatedCategory = await Category.findByIdAndUpdate(
@@ -114,6 +128,27 @@ export const deleteCategory = async (req, res, next) => {
 
         await Category.findByIdAndDelete(req.params.id);
         res.status(200).json({ message: 'Category deleted successfully' });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Reorder categories
+export const reorderCategories = async (req, res, next) => {
+    try {
+        const { categories } = req.body;
+        
+        if (!categories || !Array.isArray(categories)) {
+            return next(errorHandler(400, 'Invalid categories data'));
+        }
+
+        // Update each category with its new order
+        const updatePromises = categories.map(({ id, order }) => 
+            Category.findByIdAndUpdate(id, { order }, { new: true })
+        );
+
+        await Promise.all(updatePromises);
+        res.status(200).json({ message: 'Categories reordered successfully' });
     } catch (error) {
         next(error);
     }
