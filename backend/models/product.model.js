@@ -30,11 +30,11 @@ const productSchema = new mongoose.Schema({
         type: String,
         default: "Lezzetli bir ürün"
     },
-    Ingredients: {
+    ingredients: {
         type: String,
         default: "No ingredients"
     },
-    Allergens: {
+    allergens: {
         type: String,
         default: "No allergens"
     },

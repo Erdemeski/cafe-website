@@ -7,9 +7,10 @@ import { Badge, Button, Card, Spinner, TextInput, Textarea } from "flowbite-reac
 import QrMenuHeader from "../components/QrMenuHeader";
 import ProductCard from '../components/ProductCard';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaCartShopping, FaCartPlus, FaUserTie } from "react-icons/fa6";
+import { FaCartShopping, FaCartPlus, FaUserTie, FaLeaf, FaGlobe } from "react-icons/fa6";
 import { FaTimes, FaHistory } from "react-icons/fa";
 import { AiOutlineSearch } from "react-icons/ai";
+import { LuMilkOff, LuVegan, LuWheatOff } from "react-icons/lu";
 
 const QrOrderPage = () => {
     const { tableNumber } = useParams();
@@ -754,6 +755,7 @@ const QrOrderPage = () => {
                         <form onSubmit={handleSubmit} className="flex flex-row gap-2 w-full">
                             <TextInput
                                 type="password"
+                                autoComplete="off"
                                 placeholder="******"
                                 id="securityCode"
                                 value={securityCode}
@@ -1629,24 +1631,58 @@ const QrOrderPage = () => {
                                                     transition={{ duration: 0.3 }}
                                                     src={selectedProduct.image || 'https://us.123rf.com/450wm/zhemchuzhina/zhemchuzhina1509/zhemchuzhina150900006/44465417-food-and-drink-outline-seamless-pattern-hand-drawn-kitchen-background-in-black-and-white-vector.jpg'}
                                                     alt={selectedProduct.ProductName}
-                                                    className="w-full h-64 lg:h-80 object-cover rounded-xl shadow-lg"
+                                                    className="w-full h-full object-cover rounded-xl shadow-lg max-w-[400px] max-h-fit mx-auto"
                                                 />
                                             </div>
 
                                             {/* Ürün Bilgileri */}
-                                            <div className="flex flex-col space-y-4">
+                                            <div className="flex flex-col space-y-3">
                                                 <motion.div
                                                     initial={{ opacity: 0, x: 20 }}
                                                     animate={{ opacity: 1, x: 0 }}
                                                     transition={{ delay: 0.1 }}
                                                 >
-                                                    <div className='mb-2'>
+                                                    <div className='mb-1'>
                                                         <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white mb-2">
                                                             {selectedProduct.ProductName}
                                                         </h2>
                                                         <div className="w-20 h-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full"></div>
                                                     </div>
-                                                    <p className="text-gray-600 dark:text-gray-300 text-lg leading-relaxed">
+
+                                                    {/* Fiyat ve Özellikler */}
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="flex flex-1 items-center justify-start py-2">
+                                                            <span className="bg-gradient-to-r from-blue-600 to-purple-600 text-white text-lg font-bold px-5 py-1 rounded-full shadow-md">
+                                                                {selectedProduct.Price}₺
+                                                            </span>
+                                                        </div>
+                                                        {(selectedProduct.isVegetarian || selectedProduct.isVegan || selectedProduct.isGlutenFree || selectedProduct.isLactoseFree) && (
+                                                            <div className="flex items-center justify-center gap-3 text-sm dark:bg-gray-800 rounded-lg p-2">
+                                                                {selectedProduct.isVegetarian && (
+                                                                    <span className="text-green-600 dark:text-green-400 flex items-center justify-center">
+                                                                        <FaLeaf className="w-8 h-8 bg-white dark:bg-gray-600 rounded-full p-1.5 shadow-lg" />
+                                                                    </span>
+                                                                )}
+                                                                {selectedProduct.isVegan && (
+                                                                    <span className="text-orange-500 dark:text-orange-400 flex items-center justify-center">
+                                                                        <LuVegan className="w-8 h-8 bg-white dark:bg-gray-600 rounded-full p-1.5 shadow-lg" />
+                                                                    </span>
+                                                                )}
+                                                                {selectedProduct.isGlutenFree && (
+                                                                    <span className="text-yellow-500 dark:text-yellow-400 flex items-center justify-center">
+                                                                        <LuWheatOff className="w-8 h-8 bg-white dark:bg-gray-600 rounded-full p-1.5 shadow-lg" />
+                                                                    </span>
+                                                                )}
+                                                                {selectedProduct.isLactoseFree && (
+                                                                    <span className="text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                                                                        <LuMilkOff className="w-8 h-8 bg-white dark:bg-gray-600 rounded-full p-1.5 shadow-lg" />
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <p className="text-gray-600 dark:text-gray-300 text-lg leading-relaxed mx-1.5 mt-3">
                                                         {selectedProduct.Description || "Lezzetli bir ürün"}
                                                     </p>
                                                 </motion.div>
@@ -1658,20 +1694,29 @@ const QrOrderPage = () => {
                                                     transition={{ delay: 0.2 }}
                                                     className="space-y-1"
                                                 >
-                                                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                                                        <span className="text-gray-700 dark:text-gray-300 font-medium">Fiyat:</span>
-                                                        <span className="text-xl font-bold text-blue-600 dark:text-blue-400">{selectedProduct.Price} ₺</span>
-                                                    </div>
 
                                                     <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                                                         <span className="text-gray-700 dark:text-gray-300 font-medium">Kategori:</span>
                                                         <span className="text-gray-900 dark:text-gray-100">{selectedProduct.category?.name || 'Kategori Yok'}</span>
                                                     </div>
+                                                    {selectedProduct.ingredients && (
+                                                        <div className="flex items-start justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg gap-3">
+                                                            <span className="text-gray-700 dark:text-gray-300 font-medium whitespace-nowrap">İçindekiler:</span>
+                                                            <span className="text-gray-900 dark:text-gray-100 text-sm leading-tight text-right pt-1">{selectedProduct.ingredients}</span>
+                                                        </div>
+                                                    )}
+                                                    {selectedProduct.allergens && (
+                                                        <div className="flex items-start justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg gap-3">
+                                                            <span className="text-gray-700 dark:text-gray-300 font-medium whitespace-nowrap">Alerjenler:</span>
+                                                            <span className="text-gray-900 dark:text-gray-100 text-sm leading-tight text-right pt-1">{selectedProduct.allergens}</span>
+                                                        </div>
+                                                    )}
 
-                                                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                                                    {/*                                                     <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                                                         <span className="text-gray-700 dark:text-gray-300 font-medium">Hazırlık Süresi:</span>
                                                         <span className="text-gray-900 dark:text-gray-100">5-10 dakika</span>
                                                     </div>
+ */}
                                                 </motion.div>
                                             </div>
                                         </div>

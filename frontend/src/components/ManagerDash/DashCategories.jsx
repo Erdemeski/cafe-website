@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Button, Card, Modal, TextInput, Label, Alert, Spinner } from 'flowbite-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Button, Card, Modal, TextInput, Label, Alert, Spinner, ToggleSwitch } from 'flowbite-react';
 import { HiPlus, HiPencil, HiTrash, HiEye, HiEyeOff } from 'react-icons/hi';
 import { FaGripVertical } from 'react-icons/fa';
 
@@ -23,6 +23,14 @@ export default function DashCategories() {
     const [formError, setFormError] = useState(null);
     const [formSuccess, setFormSuccess] = useState(null);
     const [submitting, setSubmitting] = useState(false);
+
+    // Mobil reorder için state'ler
+    const [isReordering, setIsReordering] = useState(false);
+    const [touchStartY, setTouchStartY] = useState(0);
+    const [currentTouchY, setCurrentTouchY] = useState(0);
+    const [reorderModalOpen, setReorderModalOpen] = useState(false);
+    const [selectedReorderIndex, setSelectedReorderIndex] = useState(null);
+    const touchTimeoutRef = useRef(null);
 
     // Fetch categories
     const fetchCategories = async () => {
@@ -223,7 +231,92 @@ export default function DashCategories() {
         setShowDeleteModal(true);
     };
 
-    // Drag and drop functionality
+    // Mobil reorder fonksiyonları
+    const handleTouchStart = (e, index) => {
+        setTouchStartY(e.touches[0].clientY);
+        setCurrentTouchY(e.touches[0].clientY);
+        setSelectedReorderIndex(index);
+        
+        // Visual feedback
+        e.target.style.transform = 'scale(0.98)';
+        
+        // Long press detection
+        touchTimeoutRef.current = setTimeout(() => {
+            setIsReordering(true);
+            setReorderModalOpen(true);
+            // Haptic feedback (if available)
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+        }, 500);
+    };
+
+    const handleTouchMove = (e) => {
+        if (isReordering) {
+            e.preventDefault();
+            setCurrentTouchY(e.touches[0].clientY);
+        }
+    };
+
+    const handleTouchEnd = (e) => {
+        if (touchTimeoutRef.current) {
+            clearTimeout(touchTimeoutRef.current);
+        }
+        
+        // Reset visual feedback
+        if (e.target) {
+            e.target.style.transform = 'scale(1)';
+        }
+        
+        if (!isReordering) {
+            setSelectedReorderIndex(null);
+        }
+    };
+
+    const handleReorderMove = (direction) => {
+        if (selectedReorderIndex === null) return;
+        
+        const newIndex = direction === 'up' 
+            ? Math.max(0, selectedReorderIndex - 1)
+            : Math.min(categories.length - 1, selectedReorderIndex + 1);
+        
+        if (newIndex !== selectedReorderIndex) {
+            const newCategories = [...categories];
+            const [movedItem] = newCategories.splice(selectedReorderIndex, 1);
+            newCategories.splice(newIndex, 0, movedItem);
+            
+            setCategories(newCategories);
+            setSelectedReorderIndex(newIndex);
+            
+            // Backend'e gönder
+            updateCategoryOrder(newCategories);
+        }
+    };
+
+    const updateCategoryOrder = async (newCategories) => {
+        try {
+            await fetch('/api/category/reorder', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    categories: newCategories.map((cat, index) => ({ 
+                        id: cat._id, 
+                        order: index 
+                    })) 
+                })
+            });
+        } catch (err) {
+            console.error('Sıralama güncellenemedi:', err);
+        }
+    };
+
+    const closeReorderModal = () => {
+        setReorderModalOpen(false);
+        setIsReordering(false);
+        setSelectedReorderIndex(null);
+    };
+
+    // Desktop drag and drop functionality
     const handleDragStart = (e, index) => {
         setDraggedIndex(index);
         e.target.classList.add('opacity-50');
@@ -247,17 +340,7 @@ export default function DashCategories() {
         newCategories.splice(dropIndex, 0, draggedItem);
 
         setCategories(newCategories);
-
-        // Update order in backend (you might want to add an endpoint for this)
-        try {
-            await fetch('/api/category/reorder', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ categories: newCategories.map((cat, index) => ({ id: cat._id, order: index })) })
-            });
-        } catch (err) {
-            console.error('Sıralama güncellenemedi:', err);
-        }
+        updateCategoryOrder(newCategories);
     };
 
     if (loading) {
@@ -269,13 +352,18 @@ export default function DashCategories() {
     }
 
     return (
-        <div className='flex-1 p-7'>
-            <div className='flex justify-between items-center mb-6'>
-                <h1 className='text-3xl font-semibold text-gray-900 dark:text-white'>Kategoriler</h1>
+        <div className='flex-1 py-7 px-3 sm:px-7 overflow-y-auto h-full scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-gray-100 dark:scrollbar-track-gray-900'>
+            <div className='flex flex-col sm:flex-row gap-2 sm:gap-0 justify-between items-center mb-6'>
+                <div className='flex flex-col gap-2'>
+                    <h1 className='text-3xl font-semibold text-gray-900 dark:text-white'>Kategoriler</h1>
+                    <p className='text-sm text-gray-600 dark:text-gray-400'>
+                        Mobil cihazlarda kategoriyi yeniden sıralamak için uzun basın
+                    </p>
+                </div>
                 <Button
                     gradientDuoTone="purpleToBlue"
                     onClick={() => setShowCreateModal(true)}
-                    className='flex items-center gap-2'
+                    className='flex items-center gap-2 '
                 >
                     <HiPlus className='w-5 h-5' />
                     Yeni Kategori
@@ -298,29 +386,41 @@ export default function DashCategories() {
                 {categories.map((category, index) => (
                     <Card
                         key={category._id}
-                        className={`transition-all duration-200 hover:shadow-lg ${draggedIndex === index ? 'opacity-50' : ''
-                            }`}
+                        className={`transition-all duration-200 hover:shadow-lg ${
+                            draggedIndex === index ? 'opacity-50' : ''
+                        } ${
+                            selectedReorderIndex === index ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20' : ''
+                        }`}
                         draggable
                         onDragStart={(e) => handleDragStart(e, index)}
                         onDragEnd={handleDragEnd}
                         onDragOver={handleDragOver}
                         onDrop={(e) => handleDrop(e, index)}
+                        onTouchStart={(e) => handleTouchStart(e, index)}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
+                        theme={{
+                            root: {
+                                children: 'flex h-full flex-col justify-center gap-4 p-2 sm:p-6'
+                            }
+                        }}
                     >
                         <div className='flex items-center justify-between'>
                             <div className='flex items-center gap-4 flex-1'>
-                                <div className='flex items-center gap-2 text-gray-500 cursor-move'>
+                                <div className='flex items-center gap-2 text-gray-500 cursor-move select-none'>
                                     <FaGripVertical className='w-4 h-4' />
                                     <span className='text-sm font-medium'>{index + 1}</span>
+                                    <span className='text-xs text-gray-400 hidden sm:inline'>• Sürükle</span>
                                 </div>
 
                                 <div className='flex items-center gap-3 flex-1'>
                                     {category.image && (
-                                        <div className='w-12 h-12 flex items-center justify-center object-cover text-center text-4xl rounded-lg'>
+                                        <div className='w-10 h-10 sm:w-12 sm:h-12 text-3xl sm:text-4xl flex items-center justify-center object-cover text-center rounded-lg'>
                                             {category.image}
                                         </div>
                                     )}
                                     <div className='flex-1'>
-                                        <h3 className='text-lg font-semibold text-gray-900 dark:text-white'>
+                                        <h3 className='text-base sm:text-lg font-semibold text-gray-900 dark:text-white'>
                                             {category.name}
                                         </h3>
                                         {category.description && (
@@ -332,8 +432,8 @@ export default function DashCategories() {
                                 </div>
                             </div>
 
-                            <div className='flex items-center gap-2'>
-                                <div className='flex items-center gap-1'>
+                            <div className='flex items-center gap-3 ml-2'>
+                                <div className='flex flex-col sm:flex-row items-center'>
                                     {category.isActive ? (
                                         <HiEye className='w-5 h-5 text-green-500' />
                                     ) : (
@@ -343,22 +443,23 @@ export default function DashCategories() {
                                         {category.isActive ? 'Aktif' : 'Pasif'}
                                     </span>
                                 </div>
+                                <div className='flex flex-col sm:flex-row items-center gap-2'>
+                                    <Button
+                                        size="sm"
+                                        color="gray"
+                                        onClick={() => openEditModal(category)}
+                                    >
+                                        <HiPencil className='w-4 h-4' />
+                                    </Button>
 
-                                <Button
-                                    size="sm"
-                                    color="gray"
-                                    onClick={() => openEditModal(category)}
-                                >
-                                    <HiPencil className='w-4 h-4' />
-                                </Button>
-
-                                <Button
-                                    size="sm"
-                                    color="failure"
-                                    onClick={() => openDeleteModal(category)}
-                                >
-                                    <HiTrash className='w-4 h-4' />
-                                </Button>
+                                    <Button
+                                        size="sm"
+                                        color="failure"
+                                        onClick={() => openDeleteModal(category)}
+                                    >
+                                        <HiTrash className='w-4 h-4' />
+                                    </Button>
+                                </div>
                             </div>
                         </div>
                     </Card>
@@ -379,10 +480,15 @@ export default function DashCategories() {
             </div>
 
             {/* Create Modal */}
-            <Modal show={showCreateModal} onClose={() => setShowCreateModal(false)} size="md">
-                <Modal.Header>Yeni Kategori Oluştur</Modal.Header>
+            <Modal show={showCreateModal} onClose={() => setShowCreateModal(false)} size="md" className='pt-16 mb-2'>
+                <Modal.Header className='p-3'>Yeni Kategori Oluştur</Modal.Header>
                 <Modal.Body>
                     <form onSubmit={handleCreate} className='space-y-4'>
+                        <div className='flex items-center gap-2'>
+                            <ToggleSwitch checked={formData.isActive} id="edit-isActive" onChange={(checked) => setFormData({ ...formData, isActive: checked })} />
+                            <Label htmlFor="edit-isActive">{formData.isActive ? 'Aktif' : <span className='text-red-500'>Deaktif</span>}</Label>
+                        </div>
+
                         <div>
                             <Label htmlFor="name">Kategori Adı</Label>
                             <TextInput
@@ -394,7 +500,7 @@ export default function DashCategories() {
                         </div>
 
                         <div>
-                            <Label htmlFor="description">Açıklama</Label>
+                            <Label htmlFor="description">Açıklama <span className='text-xs text-gray-500 dark:text-gray-400'> (Opsiyonel)</span></Label>
                             <TextInput
                                 id="description"
                                 value={formData.description}
@@ -403,24 +509,13 @@ export default function DashCategories() {
                         </div>
 
                         <div>
-                            <Label htmlFor="image">Resim URL</Label>
+                            <Label htmlFor="image">Resim <span className='text-xs text-gray-500 dark:text-gray-400'> (Emoji)</span></Label>
                             <TextInput
                                 id="image"
                                 value={formData.image}
                                 onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                                placeholder="https://example.com/image.jpg"
+                                placeholder="🍕"
                             />
-                        </div>
-
-                        <div className='flex items-center gap-2'>
-                            <input
-                                type="checkbox"
-                                id="isActive"
-                                checked={formData.isActive}
-                                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                                className='w-4 h-4'
-                            />
-                            <Label htmlFor="isActive">Aktif</Label>
                         </div>
 
                         {formError && (
@@ -442,10 +537,15 @@ export default function DashCategories() {
             </Modal>
 
             {/* Edit Modal */}
-            <Modal show={showEditModal} onClose={() => setShowEditModal(false)} size="md">
-                <Modal.Header>Kategori Düzenle</Modal.Header>
+            <Modal show={showEditModal} onClose={() => setShowEditModal(false)} size="md" className='pt-16 mb-2'>
+                <Modal.Header className='p-3'>Kategori Düzenle</Modal.Header>
                 <Modal.Body>
                     <form onSubmit={handleUpdateWithProductConfirmation} className='space-y-4'>
+                        <div className='flex items-center gap-2'>
+                            <ToggleSwitch checked={formData.isActive} id="edit-isActive" onChange={(checked) => setFormData({ ...formData, isActive: checked })} />
+                            <Label htmlFor="edit-isActive">{formData.isActive ? 'Aktif' : <span className='text-red-500'>Deaktif</span>}</Label>
+                        </div>
+
                         <div>
                             <Label htmlFor="edit-name">Kategori Adı</Label>
                             <TextInput
@@ -457,7 +557,7 @@ export default function DashCategories() {
                         </div>
 
                         <div>
-                            <Label htmlFor="edit-description">Açıklama</Label>
+                            <Label htmlFor="edit-description">Açıklama <span className='text-xs text-gray-500 dark:text-gray-400'> (Opsiyonel)</span></Label>
                             <TextInput
                                 id="edit-description"
                                 value={formData.description}
@@ -466,24 +566,13 @@ export default function DashCategories() {
                         </div>
 
                         <div>
-                            <Label htmlFor="edit-image">Resim URL</Label>
+                            <Label htmlFor="edit-image">Resim <span className='text-xs text-gray-500 dark:text-gray-400'> (Emoji)</span></Label>
                             <TextInput
                                 id="edit-image"
                                 value={formData.image}
                                 onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                                placeholder="https://example.com/image.jpg"
+                                placeholder="🍕"
                             />
-                        </div>
-
-                        <div className='flex items-center gap-2'>
-                            <input
-                                type="checkbox"
-                                id="edit-isActive"
-                                checked={formData.isActive}
-                                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                                className='w-4 h-4'
-                            />
-                            <Label htmlFor="edit-isActive">Aktif</Label>
                         </div>
 
                         {formError && (
@@ -505,8 +594,8 @@ export default function DashCategories() {
             </Modal>
 
             {/* Delete Modal */}
-            <Modal show={showDeleteModal} onClose={() => setShowDeleteModal(false)} size="md">
-                <Modal.Header>Kategori Sil</Modal.Header>
+            <Modal show={showDeleteModal} onClose={() => setShowDeleteModal(false)} size="md" className='pt-16 mb-2'>
+                <Modal.Header className='p-3'>Kategori Sil</Modal.Header>
                 <Modal.Body>
                     <div className='space-y-4'>
                         <p>
@@ -535,8 +624,8 @@ export default function DashCategories() {
             </Modal>
 
             {/* Product Status Confirmation Modal */}
-            <Modal show={showProductStatusModal} onClose={() => setShowProductStatusModal(false)} size="md">
-                <Modal.Header>Ürün Durumu Güncelleme</Modal.Header>
+            <Modal show={showProductStatusModal} onClose={() => setShowProductStatusModal(false)} size="md" className='pt-16 mb-2'>
+                <Modal.Header className='p-3'>Ürün Durumu Güncelleme</Modal.Header>
                 <Modal.Body>
                     <div className='space-y-4'>
                         <p>
@@ -581,6 +670,44 @@ export default function DashCategories() {
                                 disabled={submitting}
                             >
                                 {submitting ? <Spinner size="sm" /> : 'Kategori ve Ürünler'}
+                            </Button>
+                        </div>
+                    </div>
+                </Modal.Body>
+            </Modal>
+
+            {/* Mobil Reorder Modal */}
+            <Modal show={reorderModalOpen} onClose={closeReorderModal} size="sm" className='pt-16 mb-2'>
+                <Modal.Header className='p-3'>Kategori Sıralaması</Modal.Header>
+                <Modal.Body>
+                    <div className='space-y-4'>
+                        <p className='text-sm text-gray-600 dark:text-gray-400'>
+                            <strong>{categories[selectedReorderIndex]?.name}</strong> kategorisini yeniden sıralamak için aşağıdaki butonları kullanın.
+                        </p>
+                        
+                        <div className='flex flex-col gap-2'>
+                            <Button
+                                color="gray"
+                                onClick={() => handleReorderMove('up')}
+                                disabled={selectedReorderIndex === 0}
+                                className='flex items-center justify-center gap-2'
+                            >
+                                ↑ Yukarı Taşı
+                            </Button>
+                            
+                            <Button
+                                color="gray"
+                                onClick={() => handleReorderMove('down')}
+                                disabled={selectedReorderIndex === categories.length - 1}
+                                className='flex items-center justify-center gap-2'
+                            >
+                                ↓ Aşağı Taşı
+                            </Button>
+                        </div>
+
+                        <div className='flex gap-2 justify-end'>
+                            <Button color="gray" onClick={closeReorderModal}>
+                                Kapat
                             </Button>
                         </div>
                     </div>

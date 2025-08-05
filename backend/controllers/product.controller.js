@@ -42,7 +42,7 @@ export const createProduct = async (req, res, next) => {
   //}
   
   try {
-    const { ProductName, Price, image, category, isActive, ShortDescription, Description, Ingredients, Allergens, isPopular, isNewOne, isVegetarian, isVegan, isGlutenFree, isLactoseFree } = req.body;
+    const { ProductName, Price, image, category, isActive, ShortDescription, Description, ingredients, allergens, isPopular, isNewOne, isVegetarian, isVegan, isGlutenFree, isLactoseFree } = req.body;
     
     if (!ProductName || !Price || !category) {
       return next(errorHandler(400, "Eksik parametre."));
@@ -62,8 +62,8 @@ export const createProduct = async (req, res, next) => {
       isActive: isActive !== undefined ? isActive : true, 
       ShortDescription,
       Description,
-      Ingredients,
-      Allergens,
+      ingredients,
+      allergens,
       isPopular,
       isNewOne,
       isVegetarian,
@@ -90,10 +90,10 @@ export const updateProduct = async (req, res, next) => {
   
   try {
     const { id } = req.params;
-    const { ProductName, Price, image, category, isActive, ShortDescription, Description, Ingredients, Allergens, isPopular, isNewOne, isVegetarian, isVegan, isGlutenFree, isLactoseFree } = req.body;
+    const { ProductName, Price, image, category, isActive, ShortDescription, Description, ingredients, allergens, isPopular, isNewOne, isVegetarian, isVegan, isGlutenFree, isLactoseFree } = req.body;
     
-    // En az bir güncelleme alanı olmalı
-    if (!ProductName && !Price && !image && !category && isActive === undefined && !ShortDescription && !Description && !Ingredients && !Allergens && isPopular === undefined && isNewOne === undefined && isVegetarian === undefined && isVegan === undefined && isGlutenFree === undefined && isLactoseFree === undefined) {
+    // En az bir güncelleme alanı olmalı (boş string'ler de geçerli)
+    if (!ProductName && !Price && !image && !category && isActive === undefined && ShortDescription === undefined && Description === undefined && ingredients === undefined && allergens === undefined && isPopular === undefined && isNewOne === undefined && isVegetarian === undefined && isVegan === undefined && isGlutenFree === undefined && isLactoseFree === undefined) {
       return next(errorHandler(400, "En az bir güncelleme alanı gerekli."));
     }
     
@@ -116,10 +116,10 @@ export const updateProduct = async (req, res, next) => {
     if (image) updateData.image = image;
     if (category) updateData.category = category;
     if (isActive !== undefined) updateData.isActive = isActive;
-    if (ShortDescription) updateData.ShortDescription = ShortDescription;
-    if (Description) updateData.Description = Description;
-    if (Ingredients) updateData.Ingredients = Ingredients;
-    if (Allergens) updateData.Allergens = Allergens;
+    if (ShortDescription !== undefined) updateData.ShortDescription = ShortDescription;
+    if (Description !== undefined) updateData.Description = Description;
+    if (ingredients !== undefined) updateData.ingredients = ingredients;
+    if (allergens !== undefined) updateData.allergens = allergens;
     if (isPopular !== undefined) updateData.isPopular = isPopular;
     if (isNewOne !== undefined) updateData.isNewOne = isNewOne;
     if (isVegetarian !== undefined) updateData.isVegetarian = isVegetarian;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Card, Modal, TextInput, Label, Alert, Spinner } from 'flowbite-react';
-import { HiPlus, HiPencil, HiTrash, HiEye, HiEyeOff } from 'react-icons/hi';
+import { HiPlus, HiPencil, HiTrash, HiEye, HiEyeOff, HiInformationCircle } from 'react-icons/hi';
 
 export default function DashTables() {
     const [tables, setTables] = useState([]);
@@ -154,8 +154,8 @@ export default function DashTables() {
         <div className='flex-1 p-7'>
             <div className='flex justify-between items-center mb-6'>
                 <h1 className='text-3xl font-semibold text-gray-900 dark:text-white'>Masalar</h1>
-                <Button 
-                    gradientDuoTone="purpleToBlue" 
+                <Button
+                    gradientDuoTone="purpleToBlue"
                     onClick={() => setShowCreateModal(true)}
                     className='flex items-center gap-2'
                 >
@@ -177,7 +177,7 @@ export default function DashTables() {
                             <div className='w-20 h-20 mx-auto bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-white text-2xl font-bold'>
                                 {table.tableNumber}
                             </div>
-                            
+
                             <div className='space-y-2'>
                                 <h3 className='text-lg font-semibold text-gray-900 dark:text-white'>
                                     Masa {table.tableNumber}
@@ -192,18 +192,18 @@ export default function DashTables() {
                         </div>
 
                         <div className='flex gap-2 mt-4'>
-                            <Button 
-                                size="sm" 
-                                color="gray" 
+                            <Button
+                                size="sm"
+                                color="gray"
                                 onClick={() => openEditModal(table)}
                                 className='flex-1'
                             >
                                 <HiPencil className='w-4 h-4 mr-1' />
                                 Düzenle
                             </Button>
-                            <Button 
-                                size="sm" 
-                                color="failure" 
+                            <Button
+                                size="sm"
+                                color="failure"
                                 onClick={() => openDeleteModal(table)}
                             >
                                 <HiTrash className='w-4 h-4' />
@@ -215,8 +215,8 @@ export default function DashTables() {
                 {tables.length === 0 && (
                     <Card className='text-center py-12 col-span-full'>
                         <p className='text-gray-500 dark:text-gray-400'>Henüz masa bulunmuyor.</p>
-                        <Button 
-                            gradientDuoTone="purpleToBlue" 
+                        <Button
+                            gradientDuoTone="purpleToBlue"
                             className='mt-4'
                             onClick={() => setShowCreateModal(true)}
                         >
@@ -227,8 +227,8 @@ export default function DashTables() {
             </div>
 
             {/* Create Modal */}
-            <Modal show={showCreateModal} onClose={() => setShowCreateModal(false)} size="md">
-                <Modal.Header>Yeni Masa Oluştur</Modal.Header>
+            <Modal show={showCreateModal} onClose={() => setShowCreateModal(false)} size="md" className='pt-16 mb-2'>
+                <Modal.Header className='p-3'>Yeni Masa Oluştur</Modal.Header>
                 <Modal.Body>
                     <form onSubmit={handleCreate} className='space-y-4'>
                         <div>
@@ -241,7 +241,7 @@ export default function DashTables() {
                                 required
                             />
                         </div>
-                        
+
                         <div>
                             <Label htmlFor="securityCode">Güvenlik Kodu</Label>
                             <div className='flex gap-2'>
@@ -253,18 +253,21 @@ export default function DashTables() {
                                     required
                                     className='flex-1'
                                 />
-                                <Button 
+                                <Button
                                     type="button"
-                                    color="gray" 
+                                    color="gray"
                                     onClick={generateSecurityCode}
                                     className='px-4'
                                 >
                                     Oluştur
                                 </Button>
                             </div>
-                            <p className='text-xs text-gray-500 mt-1'>
-                                Güvenlik kodu müşterilerin masaya erişmek için kullanacağı koddur.
-                            </p>
+                            <div className='flex flex-col sm:flex-row items-center gap-0.5 bg-yellow-50 px-2 py-1 mt-5 rounded border border-yellow-200'>
+                                <HiInformationCircle className='w-6 h-6 flex-1 text-gray-500 min-w-6 min-h-6 mr-2' />
+                                <p className='text-xs text-gray-500 w-full sm:w-auto text-center sm:text-left'>
+                                    Güvenlik kodu müşterilerin masaya erişmek için kullanacağı koddur. Her masa için farklı bir kod oluşturulmalıdır ve müşterinin QR kod ile masaya erişebilmesinde ilgili güvenlik kodunu girmesi gerekmektedir.
+                                </p>
+                            </div>
                         </div>
 
                         {formError && (
@@ -286,8 +289,8 @@ export default function DashTables() {
             </Modal>
 
             {/* Edit Modal */}
-            <Modal show={showEditModal} onClose={() => setShowEditModal(false)} size="md">
-                <Modal.Header>Masa Düzenle</Modal.Header>
+            <Modal show={showEditModal} onClose={() => setShowEditModal(false)} size="md" className='pt-16 mb-2'>
+                <Modal.Header className='p-3'>Masa Düzenle</Modal.Header>
                 <Modal.Body>
                     <form onSubmit={handleUpdate} className='space-y-4'>
                         <div>
@@ -300,7 +303,7 @@ export default function DashTables() {
                                 required
                             />
                         </div>
-                        
+
                         <div>
                             <Label htmlFor="edit-securityCode">Güvenlik Kodu</Label>
                             <div className='flex gap-2'>
@@ -312,18 +315,21 @@ export default function DashTables() {
                                     required
                                     className='flex-1'
                                 />
-                                <Button 
+                                <Button
                                     type="button"
-                                    color="gray" 
+                                    color="gray"
                                     onClick={generateSecurityCode}
                                     className='px-4'
                                 >
                                     Oluştur
                                 </Button>
                             </div>
-                            <p className='text-xs text-gray-500 mt-1'>
-                                Güvenlik kodu müşterilerin masaya erişmek için kullanacağı koddur.
-                            </p>
+                            <div className='flex flex-col sm:flex-row items-center gap-0.5 bg-yellow-50 px-2 py-1 mt-5 rounded border border-yellow-200'>
+                                <HiInformationCircle className='w-6 h-6 flex-1 text-gray-500 min-w-6 min-h-6 mr-2' />
+                                <p className='text-xs text-gray-500 w-full sm:w-auto text-center sm:text-left'>
+                                    Güvenlik kodu müşterilerin masaya erişmek için kullanacağı koddur. Her masa için farklı bir kod oluşturulmalıdır ve müşterinin QR kod ile masaya erişebilmesinde ilgili güvenlik kodunu girmesi gerekmektedir.
+                                </p>
+                            </div>
                         </div>
 
                         {formError && (
@@ -345,8 +351,8 @@ export default function DashTables() {
             </Modal>
 
             {/* Delete Modal */}
-            <Modal show={showDeleteModal} onClose={() => setShowDeleteModal(false)} size="md">
-                <Modal.Header>Masa Sil</Modal.Header>
+            <Modal show={showDeleteModal} onClose={() => setShowDeleteModal(false)} size="md" className='pt-16 mb-2'>
+                <Modal.Header className='p-3'>Masa Sil</Modal.Header>
                 <Modal.Body>
                     <div className='space-y-4'>
                         <p>

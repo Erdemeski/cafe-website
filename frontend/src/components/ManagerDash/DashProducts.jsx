@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Card, Modal, TextInput, Label, Alert, Spinner, Select, Textarea, ToggleSwitch, Checkbox } from 'flowbite-react';
-import { HiPlus, HiPencil, HiTrash, HiEye, HiEyeOff, HiX } from 'react-icons/hi';
+import { HiPlus, HiPencil, HiTrash, HiEye, HiEyeOff, HiX, HiInformationCircle, HiSearch, HiFilter } from 'react-icons/hi';
 import { getDownloadURL, getStorage, ref, uploadBytesResumable } from 'firebase/storage';
 import { app } from '../../firebase';
 import { CircularProgressbar } from "react-circular-progressbar";
@@ -17,6 +17,12 @@ export default function DashProducts() {
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [imageUploadProgress, setImageUploadProgress] = useState({});
     const [imageUploadError, setImageUploadError] = useState(null);
+
+    // Filtreleme ve arama state'leri
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('');
+    const [showFilters, setShowFilters] = useState(false);
+
     const [formData, setFormData] = useState({
         ProductName: '',
         Price: '',
@@ -25,8 +31,8 @@ export default function DashProducts() {
         isActive: true,
         ShortDescription: '',
         Description: '',
-        Ingredients: '',
-        Allergens: '',
+        ingredients: '',
+        allergens: '',
         isPopular: false,
         isNewOne: false,
         isVegetarian: false,
@@ -203,18 +209,31 @@ export default function DashProducts() {
         }
     };
 
+    // Filtreleme fonksiyonu
+    const filteredProducts = products.filter(product => {
+        const matchesSearch = product.ProductName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (product.ShortDescription && product.ShortDescription.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (product.Description && product.Description.toLowerCase().includes(searchTerm.toLowerCase()));
+
+        const matchesCategory = !selectedCategory ||
+            (product.category &&
+                (typeof product.category === 'object' ? product.category._id : product.category) === selectedCategory);
+
+        return matchesSearch && matchesCategory;
+    });
+
     // Reset form
     const resetForm = () => {
         setFormData({
             ProductName: '',
             Price: '',
-            image: '',
+            image: 'https://us.123rf.com/450wm/zhemchuzhina/zhemchuzhina1509/zhemchuzhina150900006/44465417-food-and-drink-outline-seamless-pattern-hand-drawn-kitchen-background-in-black-and-white-vector.jpg',
             category: '',
             isActive: true,
             ShortDescription: '',
             Description: '',
-            Ingredients: '',
-            Allergens: '',
+            ingredients: '',
+            allergens: '',
             isPopular: false,
             isNewOne: false,
             isVegetarian: false,
@@ -238,8 +257,8 @@ export default function DashProducts() {
             isActive: product.isActive,
             ShortDescription: product.ShortDescription,
             Description: product.Description,
-            Ingredients: product.Ingredients,
-            Allergens: product.Allergens,
+            ingredients: product.ingredients,
+            allergens: product.allergens,
             isPopular: product.isPopular,
             isNewOne: product.isNewOne,
             isVegetarian: product.isVegetarian,
@@ -256,6 +275,12 @@ export default function DashProducts() {
         setShowDeleteModal(true);
     };
 
+    // Filtreleri temizle
+    const clearFilters = () => {
+        setSearchTerm('');
+        setSelectedCategory('');
+    };
+
     if (loading) {
         return (
             <div className='flex-1 p-7 flex items-center justify-center'>
@@ -270,7 +295,7 @@ export default function DashProducts() {
                 <h1 className='text-3xl font-semibold text-gray-900 dark:text-white'>Ürünler</h1>
                 <Button
                     gradientDuoTone="purpleToBlue"
-                    onClick={() => setShowCreateModal(true)}
+                    onClick={() => { setShowCreateModal(true); resetForm() }}
                     className='flex items-center gap-2'
                 >
                     <HiPlus className='w-5 h-5' />
@@ -284,14 +309,79 @@ export default function DashProducts() {
                 </Alert>
             )}
 
+            {/* Arama ve Filtreleme Alanları */}
+            <div className='mb-6 space-y-4'>
+                {/* Arama ve Filtreleme Satırı */}
+                <div className='flex flex-col sm:flex-row gap-2 items-start sm:items-center'>
+                    {/* Arama Çubuğu */}
+                    <div className='flex items-center gap-2 w-full sm:w-1/2'>
+                        <HiSearch className='h-5 w-5 text-gray-500 flex-shrink-0' />
+                        <TextInput
+                            type="text"
+                            placeholder="Ürün adı, açıklama veya içerik ara..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className='w-full'
+                        />
+                    </div>
+
+                    {/* Kategori Filtresi */}
+                    <div className='flex items-center gap-2 w-full sm:w-1/2'>
+                        <HiFilter className='w-5 h-5 text-gray-500 flex-shrink-0' />
+                        <Select
+                            id="categoryFilter"
+                            value={selectedCategory}
+                            onChange={(e) => setSelectedCategory(e.target.value)}
+                            className='min-w-0 flex-1'
+                        >
+                            <option value="">Tüm Kategoriler</option>
+                            {categories.map((category) => (
+                                <option key={category._id} value={category._id}>
+                                    {category.name}
+                                </option>
+                            ))}
+                        </Select>
+                    </div>
+
+                    {/* Temizle Butonu */}
+                    {(searchTerm || selectedCategory) && (
+                        <Button
+                            color="light"
+                            onClick={clearFilters}
+                            className='flex items-center gap-2 flex-shrink-0 w-full sm:w-auto'
+                        >
+                            <HiX className='w-4 h-4' />
+                            <span className='text-sm'>Temizle</span>
+                        </Button>
+                    )}
+                </div>
+
+
+
+                {/* Sonuç Bilgisi */}
+                {filteredProducts.length !== products.length && (
+                    <div className='text-sm text-gray-600 dark:text-gray-400'>
+                        {filteredProducts.length} ürün bulundu (toplam {products.length} ürün)
+                    </div>
+                )}
+            </div>
+
             <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
-                {products.map((product) => (
-                    <Card key={product._id} className='hover:shadow-lg transition-shadow'>
+                {filteredProducts.map((product) => (
+                    <Card
+                        key={product._id}
+                        className='hover:shadow-lg transition-shadow'
+                        theme={{
+                            root: {
+                                children: 'flex h-full flex-col justify-center gap-4 p-3 sm:p-4'
+                            }
+                        }}
+                    >
                         <div className='relative'>
                             <img
                                 src={product.image}
                                 alt={product.ProductName}
-                                className='w-full h-48 object-cover rounded-lg mb-4'
+                                className='w-full h-60 object-cover rounded-lg'
                             />
                             <div className='absolute top-2 right-2 flex gap-1'>
                                 {product.isPopular && (
@@ -303,18 +393,18 @@ export default function DashProducts() {
                             </div>
                         </div>
 
-                        <div className='space-y-2'>
+                        <div className='space-y-1'>
                             <h3 className='text-lg font-semibold text-gray-900 dark:text-white'>
                                 {product.ProductName}
                             </h3>
                             <p className='text-gray-600 dark:text-gray-400 text-sm'>
-                                {product.ShortDescription}
+                                {product.ShortDescription ? product.ShortDescription : <span>Lezzetli bir ürün <span className='text-gray-500 dark:text-gray-400'>(Kısa açıklama girilmedi)</span></span>}
                             </p>
                             <div className='flex items-center justify-between'>
-                                <span className='text-xl font-bold text-green-600'>
+                                <span className='text-xl font-bold text-green-600 dark:text-green-400'>
                                     ₺{product.Price}
                                 </span>
-                                <div className='flex items-center gap-1'>
+                                <div className='flex items-center gap-1 mr-2'>
                                     {product.isActive ? (
                                         <HiEye className='w-4 h-4 text-green-500' />
                                     ) : (
@@ -324,8 +414,8 @@ export default function DashProducts() {
                             </div>
 
                             {product.category && (
-                                <p className='text-sm text-gray-500'>
-                                    Kategori: {product.category.name}
+                                <p className='text-sm text-gray-500 dark:text-gray-400'>
+                                    {product.category.name}
                                 </p>
                             )}
 
@@ -337,7 +427,7 @@ export default function DashProducts() {
                             </div>
                         </div>
 
-                        <div className='flex gap-2 mt-4'>
+                        <div className='flex gap-2'>
                             <Button
                                 size="sm"
                                 color="gray"
@@ -358,25 +448,40 @@ export default function DashProducts() {
                     </Card>
                 ))}
 
-                {products.length === 0 && (
+                {filteredProducts.length === 0 && (
                     <Card className='text-center py-12 col-span-full'>
-                        <p className='text-gray-500 dark:text-gray-400'>Henüz ürün bulunmuyor.</p>
-                        <Button
-                            gradientDuoTone="purpleToBlue"
-                            className='mt-4'
-                            onClick={() => setShowCreateModal(true)}
-                        >
-                            İlk Ürünü Oluştur
-                        </Button>
+                        {products.length === 0 ? (
+                            <>
+                                <p className='text-gray-500 dark:text-gray-400'>Henüz ürün bulunmuyor.</p>
+                                <Button
+                                    gradientDuoTone="purpleToBlue"
+                                    className='mt-4'
+                                    onClick={() => { setShowCreateModal(true); resetForm() }}
+                                >
+                                    İlk Ürünü Oluştur
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                                <p className='text-gray-500 dark:text-gray-400'>Arama kriterlerinize uygun ürün bulunamadı.</p>
+                                <Button
+                                    color="gray"
+                                    className='mt-4'
+                                    onClick={clearFilters}
+                                >
+                                    Filtreleri Temizle
+                                </Button>
+                            </>
+                        )}
                     </Card>
                 )}
             </div>
 
             {/* Create Product Modal */}
-            <Modal show={showCreateModal} onClose={() => setShowCreateModal(false)} size="4xl">
-                <Modal.Header>Yeni Ürün Oluştur</Modal.Header>
+            <Modal show={showCreateModal} onClose={() => setShowCreateModal(false)} size="4xl" className='pt-16 mb-2'>
+                <Modal.Header className='p-3'>Yeni Ürün Oluştur</Modal.Header>
                 <Modal.Body>
-                    <form onSubmit={handleCreate} className='space-y-6'>
+                    <form onSubmit={handleCreate} className='space-y-3'>
                         <div className='flex flex-col md:flex-row justify-start gap-4'>
                             <div className='flex items-center gap-2'>
                                 <ToggleSwitch checked={formData.isActive} id="isActive" onChange={(checked) => setFormData({ ...formData, isActive: checked })} />
@@ -449,6 +554,7 @@ export default function DashProducts() {
                                 rows={4}
                                 value={formData.Description}
                                 onChange={(e) => setFormData({ ...formData, Description: e.target.value })}
+                                className='min-h-[50px] max-h-[200px] overflow-y-auto'
                             />
                         </div>
 
@@ -458,8 +564,9 @@ export default function DashProducts() {
                                 <Textarea
                                     id="ingredients"
                                     rows={3}
-                                    value={formData.Ingredients}
-                                    onChange={(e) => setFormData({ ...formData, Ingredients: e.target.value })}
+                                    value={formData.ingredients}
+                                    onChange={(e) => setFormData({ ...formData, ingredients: e.target.value })}
+                                    className='min-h-[50px] max-h-[200px] overflow-y-auto'
                                 />
                             </div>
 
@@ -468,16 +575,43 @@ export default function DashProducts() {
                                 <Textarea
                                     id="allergens"
                                     rows={3}
-                                    value={formData.Allergens}
-                                    onChange={(e) => setFormData({ ...formData, Allergens: e.target.value })}
+                                    value={formData.allergens}
+                                    onChange={(e) => setFormData({ ...formData, allergens: e.target.value })}
+                                    className='min-h-[50px] max-h-[200px] overflow-y-auto'
                                 />
+                            </div>
+                        </div>
+
+                        {/* Checkboxes */}
+                        <div className='py-4'>
+                            <Label>Ürün Özellikleri</Label>
+                            <div className='grid grid-cols-2 md:grid-cols-3 gap-4 mt-1'>
+                                <div className='flex items-center gap-2'>
+                                    <Checkbox id="isVegetarian" checked={formData.isVegetarian} onChange={(e) => setFormData({ ...formData, isVegetarian: e.target.checked })} />
+                                    <Label htmlFor="isVegetarian">Vejetaryen</Label>
+                                </div>
+
+                                <div className='flex items-center gap-2'>
+                                    <Checkbox id="isVegan" checked={formData.isVegan} onChange={(e) => setFormData({ ...formData, isVegan: e.target.checked })} />
+                                    <Label htmlFor="isVegan">Vegan</Label>
+                                </div>
+
+                                <div className='flex items-center gap-2'>
+                                    <Checkbox id="isGlutenFree" checked={formData.isGlutenFree} onChange={(e) => setFormData({ ...formData, isGlutenFree: e.target.checked })} />
+                                    <Label htmlFor="isGlutenFree">Glutensiz</Label>
+                                </div>
+
+                                <div className='flex items-center gap-2'>
+                                    <Checkbox id="isLactoseFree" checked={formData.isLactoseFree} onChange={(e) => setFormData({ ...formData, isLactoseFree: e.target.checked })} />
+                                    <Label htmlFor="isLactoseFree">Laktozsuz</Label>
+                                </div>
                             </div>
                         </div>
 
                         {/* Image Upload */}
                         <div className='space-y-4'>
-                            <Label>Ürün Resmi</Label>
-                            <div className='flex flex-col sm:flex-row items-center justify-between gap-4'>
+                            <Label className='text-xl font-semibold'>Ürün Resmi</Label>
+                            <div className='flex flex-col sm:flex-row items-center justify-between gap-3'>
                                 <input
                                     type='file'
                                     accept='image/*'
@@ -518,7 +652,7 @@ export default function DashProducts() {
                                     <img
                                         src={formData.image}
                                         alt="Preview"
-                                        className='w-32 h-32 object-cover rounded-lg'
+                                        className='w-full h-full object-cover rounded-lg border border-gray-200'
                                     />
                                     <button
                                         type='button'
@@ -527,32 +661,14 @@ export default function DashProducts() {
                                     >
                                         <HiX className='w-4 h-4' />
                                     </button>
+                                    <div className='flex flex-col sm:flex-row items-center gap-0.5 bg-yellow-50 px-2 py-1 mt-5 mb-2 rounded border border-yellow-200'>
+                                        <HiInformationCircle className='w-6 h-6 flex-1 text-gray-500 min-w-6 min-h-6 mr-2' />
+                                        <p className='text-xs text-gray-500 w-full sm:w-auto text-center sm:text-left'>
+                                            Yüklenen resimlerin boyutu 400x400 pikselden büyük olmaması tavsiye edilir. (QR Menü ana sayfasında görüntülenecek resim boyutu max 356x240 piksel, QR Menü ürün detay sayfasında görüntülenecek resim boyutu max 400x400 pikseldir. Girilen resimlerin boyut oranı bu sınırları aşarsa resim kırpılacaktır.)
+                                        </p>
+                                    </div>
                                 </div>
                             )}
-                        </div>
-
-                        {/* Checkboxes */}
-                        <div className='grid grid-cols-2 md:grid-cols-3 gap-4'>
-
-                            <div className='flex items-center gap-2'>
-                                <Checkbox id="isVegetarian" checked={formData.isVegetarian} onChange={(e) => setFormData({ ...formData, isVegetarian: e.target.checked })} />
-                                <Label htmlFor="isVegetarian">Vejetaryen</Label>
-                            </div>
-
-                            <div className='flex items-center gap-2'>
-                                <Checkbox id="isVegan" checked={formData.isVegan} onChange={(e) => setFormData({ ...formData, isVegan: e.target.checked })} />
-                                <Label htmlFor="isVegan">Vegan</Label>
-                            </div>
-
-                            <div className='flex items-center gap-2'>
-                                <Checkbox id="isGlutenFree" checked={formData.isGlutenFree} onChange={(e) => setFormData({ ...formData, isGlutenFree: e.target.checked })} />
-                                <Label htmlFor="isGlutenFree">Glutensiz</Label>
-                            </div>
-
-                            <div className='flex items-center gap-2'>
-                                <Checkbox id="isLactoseFree" checked={formData.isLactoseFree} onChange={(e) => setFormData({ ...formData, isLactoseFree: e.target.checked })} />
-                                <Label htmlFor="isLactoseFree">Laktozsuz</Label>
-                            </div>
                         </div>
 
                         {formError && (
@@ -574,11 +690,27 @@ export default function DashProducts() {
             </Modal>
 
             {/* Edit Product Modal */}
-            <Modal show={showEditModal} onClose={() => setShowEditModal(false)} size="4xl">
-                <Modal.Header>Ürün Düzenle</Modal.Header>
+            <Modal show={showEditModal} onClose={() => setShowEditModal(false)} size="4xl" className='pt-16 mb-2'>
+                <Modal.Header className='p-3'>Ürün Düzenle</Modal.Header>
                 <Modal.Body>
-                    <form onSubmit={handleUpdate} className='space-y-6'>
-                        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                    <form onSubmit={handleUpdate} className='space-y-3'>
+                        <div className='flex flex-col md:flex-row justify-start gap-4'>
+                            <div className='flex items-center gap-2'>
+                                <ToggleSwitch checked={formData.isActive} id="edit-isActive" onChange={(checked) => setFormData({ ...formData, isActive: checked })} />
+                                <Label htmlFor="edit-isActive">{formData.isActive ? 'Aktif' : <span className='text-red-500'>Deaktif</span>}</Label>
+                            </div>
+                            <div className='flex items-center gap-2'>
+                                <Checkbox id="edit-isPopular" checked={formData.isPopular} onChange={(e) => setFormData({ ...formData, isPopular: e.target.checked })} />
+                                <Label htmlFor="edit-isPopular">Popüler</Label>
+                            </div>
+
+                            <div className='flex items-center gap-2'>
+                                <Checkbox id="isNewOne" checked={formData.isNewOne} onChange={(e) => setFormData({ ...formData, isNewOne: e.target.checked })} />
+                                <Label htmlFor="isNewOne">Yeni</Label>
+                            </div>
+                        </div>
+
+                        <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
                             <div>
                                 <Label htmlFor="edit-productName">Ürün Adı</Label>
                                 <TextInput
@@ -638,14 +770,14 @@ export default function DashProducts() {
                             />
                         </div>
 
-                        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                        <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
                             <div>
                                 <Label htmlFor="edit-ingredients">İçindekiler</Label>
                                 <Textarea
                                     id="edit-ingredients"
                                     rows={3}
-                                    value={formData.Ingredients}
-                                    onChange={(e) => setFormData({ ...formData, Ingredients: e.target.value })}
+                                    value={formData.ingredients}
+                                    onChange={(e) => setFormData({ ...formData, ingredients: e.target.value })}
                                 />
                             </div>
 
@@ -654,16 +786,42 @@ export default function DashProducts() {
                                 <Textarea
                                     id="edit-allergens"
                                     rows={3}
-                                    value={formData.Allergens}
-                                    onChange={(e) => setFormData({ ...formData, Allergens: e.target.value })}
+                                    value={formData.allergens}
+                                    onChange={(e) => setFormData({ ...formData, allergens: e.target.value })}
                                 />
+                            </div>
+                        </div>
+
+                        {/* Checkboxes for Edit */}
+                        <div className='py-4'>
+                            <Label>Ürün Özellikleri</Label>
+                            <div className='grid grid-cols-2 md:grid-cols-3 gap-4 mt-1'>
+                                <div className='flex items-center gap-2'>
+                                    <Checkbox id="edit-isVegetarian" checked={formData.isVegetarian} onChange={(e) => setFormData({ ...formData, isVegetarian: e.target.checked })} />
+                                    <Label htmlFor="edit-isVegetarian">Vejetaryen</Label>
+                                </div>
+
+                                <div className='flex items-center gap-2'>
+                                    <Checkbox id="edit-isVegan" checked={formData.isVegan} onChange={(e) => setFormData({ ...formData, isVegan: e.target.checked })} />
+                                    <Label htmlFor="edit-isVegan">Vegan</Label>
+                                </div>
+
+                                <div className='flex items-center gap-2'>
+                                    <Checkbox id="edit-isGlutenFree" checked={formData.isGlutenFree} onChange={(e) => setFormData({ ...formData, isGlutenFree: e.target.checked })} />
+                                    <Label htmlFor="edit-isGlutenFree">Glutensiz</Label>
+                                </div>
+
+                                <div className='flex items-center gap-2'>
+                                    <Checkbox id="edit-isLactoseFree" checked={formData.isLactoseFree} onChange={(e) => setFormData({ ...formData, isLactoseFree: e.target.checked })} />
+                                    <Label htmlFor="edit-isLactoseFree">Laktozsuz</Label>
+                                </div>
                             </div>
                         </div>
 
                         {/* Image Upload for Edit */}
                         <div className='space-y-4'>
-                            <Label>Ürün Resmi</Label>
-                            <div className='flex flex-col sm:flex-row items-center justify-between gap-4'>
+                            <Label className='text-xl font-semibold'>Ürün Resmi</Label>
+                            <div className='flex flex-col sm:flex-row items-center justify-between gap-3'>
                                 <input
                                     type='file'
                                     accept='image/*'
@@ -704,7 +862,7 @@ export default function DashProducts() {
                                     <img
                                         src={formData.image}
                                         alt="Preview"
-                                        className='w-32 h-32 object-cover rounded-lg'
+                                        className='w-full h-full object-cover rounded-lg border border-gray-200'
                                     />
                                     <button
                                         type='button'
@@ -713,88 +871,14 @@ export default function DashProducts() {
                                     >
                                         <HiX className='w-4 h-4' />
                                     </button>
+                                    <div className='flex flex-col sm:flex-row items-center gap-0.5 bg-yellow-50 px-2 py-1 mt-5 mb-2 rounded border border-yellow-200'>
+                                        <HiInformationCircle className='w-6 h-6 flex-1 text-gray-500 min-w-6 min-h-6 mr-2' />
+                                        <p className='text-xs text-gray-500 w-full sm:w-auto text-center sm:text-left'>
+                                            Yüklenen resimlerin boyutu 400x400 pikselden büyük olmaması tavsiye edilir. (QR Menü ana sayfasında görüntülenecek resim boyutu max 356x240 piksel, QR Menü ürün detay sayfasında görüntülenecek resim boyutu max 400x400 pikseldir. Girilen resimlerin boyut oranı bu sınırları aşarsa resim kırpılacaktır.)
+                                        </p>
+                                    </div>
                                 </div>
                             )}
-                        </div>
-
-                        {/* Checkboxes for Edit */}
-                        <div className='grid grid-cols-2 md:grid-cols-3 gap-4'>
-                            <div className='flex items-center gap-2'>
-                                <input
-                                    type="checkbox"
-                                    id="edit-isActive"
-                                    checked={formData.isActive}
-                                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                                    className='w-4 h-4'
-                                />
-                                <Label htmlFor="edit-isActive">Aktif</Label>
-                            </div>
-
-                            <div className='flex items-center gap-2'>
-                                <input
-                                    type="checkbox"
-                                    id="edit-isPopular"
-                                    checked={formData.isPopular}
-                                    onChange={(e) => setFormData({ ...formData, isPopular: e.target.checked })}
-                                    className='w-4 h-4'
-                                />
-                                <Label htmlFor="edit-isPopular">Popüler</Label>
-                            </div>
-
-                            <div className='flex items-center gap-2'>
-                                <input
-                                    type="checkbox"
-                                    id="edit-isNewOne"
-                                    checked={formData.isNewOne}
-                                    onChange={(e) => setFormData({ ...formData, isNewOne: e.target.checked })}
-                                    className='w-4 h-4'
-                                />
-                                <Label htmlFor="edit-isNewOne">Yeni</Label>
-                            </div>
-
-                            <div className='flex items-center gap-2'>
-                                <input
-                                    type="checkbox"
-                                    id="edit-isVegetarian"
-                                    checked={formData.isVegetarian}
-                                    onChange={(e) => setFormData({ ...formData, isVegetarian: e.target.checked })}
-                                    className='w-4 h-4'
-                                />
-                                <Label htmlFor="edit-isVegetarian">Vejetaryen</Label>
-                            </div>
-
-                            <div className='flex items-center gap-2'>
-                                <input
-                                    type="checkbox"
-                                    id="edit-isVegan"
-                                    checked={formData.isVegan}
-                                    onChange={(e) => setFormData({ ...formData, isVegan: e.target.checked })}
-                                    className='w-4 h-4'
-                                />
-                                <Label htmlFor="edit-isVegan">Vegan</Label>
-                            </div>
-
-                            <div className='flex items-center gap-2'>
-                                <input
-                                    type="checkbox"
-                                    id="edit-isGlutenFree"
-                                    checked={formData.isGlutenFree}
-                                    onChange={(e) => setFormData({ ...formData, isGlutenFree: e.target.checked })}
-                                    className='w-4 h-4'
-                                />
-                                <Label htmlFor="edit-isGlutenFree">Glutensiz</Label>
-                            </div>
-
-                            <div className='flex items-center gap-2'>
-                                <input
-                                    type="checkbox"
-                                    id="edit-isLactoseFree"
-                                    checked={formData.isLactoseFree}
-                                    onChange={(e) => setFormData({ ...formData, isLactoseFree: e.target.checked })}
-                                    className='w-4 h-4'
-                                />
-                                <Label htmlFor="edit-isLactoseFree">Laktozsuz</Label>
-                            </div>
                         </div>
 
                         {formError && (
@@ -803,7 +887,7 @@ export default function DashProducts() {
                             </Alert>
                         )}
 
-                        <div className='flex gap-2 justify-end'>
+                        <div className='flex gap-2 justify-end mt-2'>
                             <Button color="gray" onClick={() => setShowEditModal(false)}>
                                 İptal
                             </Button>
@@ -816,8 +900,8 @@ export default function DashProducts() {
             </Modal>
 
             {/* Delete Modal */}
-            <Modal show={showDeleteModal} onClose={() => setShowDeleteModal(false)} size="md">
-                <Modal.Header>Ürün Sil</Modal.Header>
+            <Modal show={showDeleteModal} onClose={() => setShowDeleteModal(false)} size="md" className='pt-16 mb-2'>
+                <Modal.Header className='p-3'>Ürün Sil</Modal.Header>
                 <Modal.Body>
                     <div className='space-y-4'>
                         <p>

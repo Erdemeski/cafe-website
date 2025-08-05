@@ -47,7 +47,7 @@ const ProductCard = ({ image, name, shortDescription, description, price, curren
       }}
       className="bg-white dark:bg-[rgb(26,31,34)] rounded-2xl shadow-lg overflow-hidden flex flex-col transition-transform w-full mx-auto max-w-sm border border-gray-200 dark:border-gray-700 cursor-pointer"
     >
-      <div className="relative w-full h-48 flex-shrink-0">
+      <div className="relative w-full h-60 flex-shrink-0">
         <img
           src={image}
           alt={name}
@@ -76,9 +76,13 @@ const ProductCard = ({ image, name, shortDescription, description, price, curren
           </motion.div>
         )}
       </div>
-      <div className="flex flex-col flex-1 p-4 pb-3">
-        <h3 className="text-lg font-semibold mb-1 text-gray-900 dark:text-white">{name}</h3>
-        <p className="text-gray-500 dark:text-gray-300 text-sm mb-4 flex-1 line-clamp-2">{shortDescription ? shortDescription : "Lezzetli bir ürün"}</p>
+      <div className="flex flex-col flex-1 px-4 py-3">
+        <div className='flex flex-row gap-2 items-center justify-between w-full mb-2 px-0.5'>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex-1">{name}</h3>
+          {shortDescription && (
+            <p className="flex-1 text-right  text-gray-500 dark:text-gray-300 text-xs line-clamp-2">{shortDescription}</p>
+          )}
+        </div>
         {typeof quantity === 'number' && onIncrease && onDecrease ? (
           <div className="flex items-center justify-between mt-auto min-h-[50px]">
             <motion.button
@@ -119,7 +123,7 @@ const ProductCard = ({ image, name, shortDescription, description, price, curren
 ProductCard.propTypes = {
   image: PropTypes.string.isRequired,
   name: PropTypes.string.isRequired,
-  shortDescription: PropTypes.string.isRequired,
+  shortDescription: PropTypes.string,
   description: PropTypes.string.isRequired,
   price: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
   currency: PropTypes.string,
