@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Button, Modal, Sidebar } from 'flowbite-react'
+import { Button, Modal, Sidebar, Badge } from 'flowbite-react'
 import { HiAnnotation, HiArrowSmLeft, HiArrowSmRight, HiChartPie, HiDocumentText, HiOutlineUserGroup, HiUser } from 'react-icons/hi'
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { signoutSuccess } from '../../redux/user/userSlice';
@@ -16,6 +16,9 @@ export default function DashSidebar() {
 
     const location = useLocation();
     const [tab, setTab] = useState('')
+    const [pendingOrders, setPendingOrders] = useState(0);
+    const [pendingCalls, setPendingCalls] = useState(0);
+    
     useEffect(() => {
         const urlParams = new URLSearchParams(location.search)
         const tabFromUrl = urlParams.get('tab')
@@ -28,6 +31,40 @@ export default function DashSidebar() {
     const [showSignout, setShowSignout] = useState(false);
     const { currentUser } = useSelector(state => state.user);
     const navigate = useNavigate();
+
+    // Fetch pending counts
+    const fetchPendingCounts = async () => {
+        try {
+            const [ordersResponse, callsResponse] = await Promise.all([
+                fetch('/api/order'),
+                fetch('/api/table/waiter-calls')
+            ]);
+
+            const ordersData = await ordersResponse.json();
+            const callsData = await callsResponse.json();
+
+            if (ordersResponse.ok) {
+                const orders = ordersData.orders || [];
+                const pendingOrdersCount = orders.filter(order => order.status === 'pending').length;
+                setPendingOrders(pendingOrdersCount);
+            }
+
+            if (callsResponse.ok) {
+                const calls = callsData.waiterCalls || [];
+                const pendingCallsCount = calls.filter(call => call.status === 'pending').length;
+                setPendingCalls(pendingCallsCount);
+            }
+        } catch (error) {
+            console.error('Error fetching pending counts:', error);
+        }
+    };
+
+    // Auto-refresh pending counts every 30 seconds
+    useEffect(() => {
+        fetchPendingCounts();
+        const interval = setInterval(fetchPendingCounts, 30000);
+        return () => clearInterval(interval);
+    }, []);
 
     const handleSignout = async () => {
         try {
@@ -76,12 +113,30 @@ export default function DashSidebar() {
                         )}
                         {currentUser.isWaiter && (
                             <Link to='/waiter-dashboard?tab=orders'>
-                                <Sidebar.Item active={tab === 'orders'} icon={RiRestaurantLine} as='div'>Orders</Sidebar.Item>
+                                <Sidebar.Item active={tab === 'orders'} icon={RiRestaurantLine} as='div'>
+                                    <div className='flex items-center justify-between w-full'>
+                                        <span>Orders</span>
+                                        {pendingOrders > 0 && (
+                                            <Badge color="warning" size="sm" className="ml-2">
+                                                {pendingOrders}
+                                            </Badge>
+                                        )}
+                                    </div>
+                                </Sidebar.Item>
                             </Link>
                         )}
                         {currentUser.isWaiter && (
                             <Link to='/waiter-dashboard?tab=waiter-calls'>
-                                <Sidebar.Item active={tab === 'waiter-calls'} icon={BiDish} as='div'>Waiter Calls</Sidebar.Item>
+                                <Sidebar.Item active={tab === 'waiter-calls'} icon={BiDish} as='div'>
+                                    <div className='flex items-center justify-between w-full'>
+                                        <span>Waiter Calls</span>
+                                        {pendingCalls > 0 && (
+                                            <Badge color="failure" size="sm" className="ml-2">
+                                                {pendingCalls}
+                                            </Badge>
+                                        )}
+                                    </div>
+                                </Sidebar.Item>
                             </Link>
                         )}
                     </Sidebar.ItemGroup>

@@ -50,6 +50,10 @@ const QrOrderPage = () => {
     const [isProductModalOpen, setIsProductModalOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState(null);
 
+    // Ürün görseli loading state'leri
+    const [productImageLoaded, setProductImageLoaded] = useState(false);
+    const [productImageError, setProductImageError] = useState(false);
+
     // Cookie süresini gerçek zamanlı güncelle
     useEffect(() => {
         if (isVerified && isCookieActive && tableCookie.expiresAt) {
@@ -387,12 +391,25 @@ const QrOrderPage = () => {
         setIsProductModalOpen(true);
         setCloseProductModals(true);
         setTimeout(() => setCloseProductModals(false), 100);
+        // Reset image loading states when opening modal
+        setProductImageLoaded(false);
+        setProductImageError(false);
     };
 
     // Ürün detay modalını kapat
     const closeProductModal = () => {
         setIsProductModalOpen(false);
         setSelectedProduct(null);
+    };
+
+    // Ürün görseli yükleme fonksiyonları
+    const handleProductImageLoad = () => {
+        setProductImageLoaded(true);
+    };
+
+    const handleProductImageError = () => {
+        setProductImageError(true);
+        setProductImageLoaded(true);
     };
 
     const closeCartModal = () => {
@@ -1625,13 +1642,62 @@ const QrOrderPage = () => {
                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                             {/* Ürün Görseli */}
                                             <div className="relative">
-                                                <motion.img
-                                                    initial={{ opacity: 0, scale: 0.9 }}
-                                                    animate={{ opacity: 1, scale: 1 }}
-                                                    transition={{ duration: 0.3 }}
+                                                {/* Skeleton Animation */}
+                                                <AnimatePresence mode='sync'>
+                                                    {!productImageLoaded && (
+                                                        <motion.div
+                                                            initial={{ opacity: 1 }}
+                                                            exit={{ opacity: 0 }}
+                                                            transition={{ duration: 0.1 }}
+                                                            className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 animate-pulse rounded-xl"
+                                                        >
+                                                            <div className="w-full h-full bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 animate-pulse rounded-xl max-w-[400px] max-h-fit mx-auto"></div>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+
+                                                {/* Actual Image */}
+                                                <AnimatePresence mode='sync'>
+                                                    {productImageLoaded && !productImageError && (
+                                                        <motion.img
+                                                            initial={{ opacity: 0, scale: 0.9 }}
+                                                            animate={{ opacity: 1, scale: 1 }}
+                                                            exit={{ opacity: 0 }}
+                                                            transition={{ duration: 0.5 }}
+                                                            src={selectedProduct.image || 'https://us.123rf.com/450wm/zhemchuzhina/zhemchuzhina1509/zhemchuzhina150900006/44465417-food-and-drink-outline-seamless-pattern-hand-drawn-kitchen-background-in-black-and-white-vector.jpg'}
+                                                            alt={selectedProduct.ProductName}
+                                                            className="w-full h-full object-cover rounded-xl shadow-lg max-w-[400px] max-h-fit mx-auto"
+                                                        />
+                                                    )}
+                                                </AnimatePresence>
+
+                                                {/* Error Placeholder */}
+                                                <AnimatePresence mode='sync'>
+                                                    {productImageLoaded && productImageError && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0 }}
+                                                            animate={{ opacity: 1 }}
+                                                            exit={{ opacity: 0 }}
+                                                            transition={{ duration: 0.5 }}
+                                                            className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center rounded-xl max-w-[400px] max-h-fit mx-auto"
+                                                        >
+                                                            <div className="text-center text-gray-500 dark:text-gray-400">
+                                                                <svg className="w-16 h-16 mx-auto mb-2" fill="currentColor" viewBox="0 0 20 20">
+                                                                    <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                                                                </svg>
+                                                                <p className="text-sm">Görsel yüklenemedi</p>
+                                                            </div>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+
+                                                {/* Hidden image for loading detection */}
+                                                <img
                                                     src={selectedProduct.image || 'https://us.123rf.com/450wm/zhemchuzhina/zhemchuzhina1509/zhemchuzhina150900006/44465417-food-and-drink-outline-seamless-pattern-hand-drawn-kitchen-background-in-black-and-white-vector.jpg'}
-                                                    alt={selectedProduct.ProductName}
-                                                    className="w-full h-full object-cover rounded-xl shadow-lg max-w-[400px] max-h-fit mx-auto"
+                                                    alt=""
+                                                    className="hidden"
+                                                    onLoad={handleProductImageLoad}
+                                                    onError={handleProductImageError}
                                                 />
                                             </div>
 

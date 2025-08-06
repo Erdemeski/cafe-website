@@ -21,6 +21,18 @@ import { FaCartPlus } from 'react-icons/fa';
  * @param {function} onProductClick - Ürün kartına tıklanınca çağrılır (modal açmak için)
  */
 const ProductCard = ({ image, name, shortDescription, description, price, currency = 'TL', onAddToCart, quantity, onIncrease, onDecrease, onModalClose, isPopular = false, isNewOne = false, category, headerRef, onProductClick }) => {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  const handleImageLoad = () => {
+    setImageLoaded(true);
+  };
+
+  const handleImageError = () => {
+    setImageError(true);
+    setImageLoaded(true);
+  };
+
   const handleAddToCart = () => {
     if (onAddToCart) {
       onAddToCart();
@@ -48,12 +60,67 @@ const ProductCard = ({ image, name, shortDescription, description, price, curren
       className="bg-white dark:bg-[rgb(26,31,34)] rounded-2xl shadow-lg overflow-hidden flex flex-col transition-transform w-full mx-auto max-w-sm border border-gray-200 dark:border-gray-700 cursor-pointer"
     >
       <div className="relative w-full h-60 flex-shrink-0">
+        {/* Skeleton Animation */}
+        <AnimatePresence mode='sync'>
+          {!imageLoaded && (
+            <motion.div
+              initial={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.1 }}
+              className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 animate-pulse"
+              onClick={handleProductClick}
+            >
+              <div className="w-full h-full bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 animate-pulse rounded-t-2xl"></div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Actual Image */}
+        <AnimatePresence mode='sync'>
+          {imageLoaded && !imageError && (
+            <motion.img
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+              src={image}
+              alt={name}
+              className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105 hover:scale-105"
+              onClick={handleProductClick}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Error Placeholder */}
+        <AnimatePresence mode='sync'>
+          {imageLoaded && imageError && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+              className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center"
+              onClick={handleProductClick}
+            >
+              <div className="text-center text-gray-500 dark:text-gray-400">
+                <svg className="w-16 h-16 mx-auto mb-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                </svg>
+                <p className="text-sm">Görsel yüklenemedi</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Hidden image for loading detection */}
         <img
           src={image}
-          alt={name}
-          className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105 hover:scale-105"
-          onClick={handleProductClick}
+          alt=""
+          className="hidden"
+          onLoad={handleImageLoad}
+          onError={handleImageError}
         />
+
         <span className="absolute top-3 right-3 bg-blue-600 text-white text-lg font-bold px-5 py-1 rounded-full shadow-md select-none">
           {price} {currency}
         </span>

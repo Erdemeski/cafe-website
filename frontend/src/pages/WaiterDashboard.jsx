@@ -5,6 +5,7 @@ import DashSidebar from '../components/WaiterDash/DashSidebar';
 import WaiterDashboardMain from '../components/WaiterDash/DashboardMain';
 import DashOrders from '../components/WaiterDash/DashOrders';
 import DashWaiterCalls from '../components/WaiterDash/DashWaiterCalls';
+import { NotificationProvider } from '../components/WaiterDash/NotificationProvider';
 import NotFound from './NotFound';
 
 export default function WaiterDashboard() {
@@ -33,11 +34,13 @@ export default function WaiterDashboard() {
     }
 
     return (
-        <div className='min-h-screen flex flex-col md:flex-row'>
-            <div className='md:w-56 z-20'>
-                <DashSidebar />
+        <NotificationProvider>
+            <div className='min-h-screen flex flex-col md:flex-row'>
+                <div className='md:w-56 z-20'>
+                    <DashSidebar />
+                </div>
+                {renderTabContent()}
             </div>
-            {renderTabContent()}
-        </div>
+        </NotificationProvider>
     )
 }
