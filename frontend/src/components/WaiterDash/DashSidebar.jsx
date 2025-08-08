@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Button, Modal, Sidebar, Badge } from 'flowbite-react'
-import { HiAnnotation, HiArrowSmLeft, HiArrowSmRight, HiChartPie, HiDocumentText, HiOutlineUserGroup, HiUser } from 'react-icons/hi'
+import { HiAnnotation, HiArrowSmLeft, HiArrowSmRight, HiChartPie, HiDocumentText, HiOutlineUserGroup, HiUser, HiClock, HiBell } from 'react-icons/hi'
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { signoutSuccess } from '../../redux/user/userSlice';
 import { useDispatch, useSelector } from "react-redux";
@@ -18,7 +18,7 @@ export default function DashSidebar() {
     const [tab, setTab] = useState('')
     const [pendingOrders, setPendingOrders] = useState(0);
     const [pendingCalls, setPendingCalls] = useState(0);
-    
+
     useEffect(() => {
         const urlParams = new URLSearchParams(location.search)
         const tabFromUrl = urlParams.get('tab')
@@ -59,11 +59,18 @@ export default function DashSidebar() {
         }
     };
 
-    // Auto-refresh pending counts every 30 seconds
+    // Auto-refresh pending counts faster and on tab focus
     useEffect(() => {
         fetchPendingCounts();
-        const interval = setInterval(fetchPendingCounts, 30000);
-        return () => clearInterval(interval);
+        const interval = setInterval(fetchPendingCounts, 10000);
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') fetchPendingCounts();
+        };
+        document.addEventListener('visibilitychange', handleVisibility);
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', handleVisibility);
+        };
     }, []);
 
     const handleSignout = async () => {
@@ -95,6 +102,9 @@ export default function DashSidebar() {
                     item: {
                         base: "flex items-center justify-center rounded-lg p-2 text-sm font-normal text-gray-900 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700",
                         active: "bg-gray-100 dark:bg-gray-700",
+                        content: {
+                            base: "flex-1 whitespace-nowrap pl-3"
+                        },
                     },
                     itemGroup: {
                         base: "mt-2 space-y-2 border-t border-gray-200 pt-2 first:mt-0 first:border-t-0 first:pt-0 dark:border-gray-700"
@@ -117,8 +127,10 @@ export default function DashSidebar() {
                                     <div className='flex items-center justify-between w-full'>
                                         <span>Orders</span>
                                         {pendingOrders > 0 && (
-                                            <Badge color="warning" size="sm" className="ml-2">
-                                                {pendingOrders}
+                                            <Badge color="warning" size="sm" className='ml-2'>
+                                                <span className='flex flex-row items-center gap-1'>
+                                                    <HiClock className='h-3 w-3' /> {pendingOrders}
+                                                </span>
                                             </Badge>
                                         )}
                                     </div>
@@ -131,8 +143,10 @@ export default function DashSidebar() {
                                     <div className='flex items-center justify-between w-full'>
                                         <span>Waiter Calls</span>
                                         {pendingCalls > 0 && (
-                                            <Badge color="failure" size="sm" className="ml-2">
-                                                {pendingCalls}
+                                            <Badge color="warning" size="sm" className='ml-2'>
+                                                <span className='flex flex-row items-center gap-1'>
+                                                    <HiBell className='h-3 w-3' /> {pendingCalls}
+                                                </span>
                                             </Badge>
                                         )}
                                     </div>

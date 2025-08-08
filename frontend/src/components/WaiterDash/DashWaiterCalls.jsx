@@ -1,12 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, Badge, Button, Modal, TextInput, Select, Alert, Spinner, Textarea } from 'flowbite-react';
-import { HiClock, HiCheck, HiX, HiEye, HiRefresh, HiFilter, HiCalendar, HiBell } from 'react-icons/hi';
-import { MdRestaurant, MdPerson, MdAccessTime } from 'react-icons/md';
+import { Card, Badge, Button, Modal, TextInput, Select, Alert, Spinner, Textarea, Datepicker } from 'flowbite-react';
+import { HiClock, HiCheck, HiX, HiEye, HiRefresh, HiFilter, HiCalendar, HiBell, HiViewBoards } from 'react-icons/hi';
+import { MdRestaurant, MdPerson, MdAccessTime, MdOutlineTableBar } from 'react-icons/md';
 import { BiDish } from 'react-icons/bi';
 import { useNotification } from './NotificationProvider';
 import { useSelector } from 'react-redux';
 
 export default function DashWaiterCalls() {
+  // Get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [waiterCalls, setWaiterCalls] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -14,9 +23,12 @@ export default function DashWaiterCalls() {
   const [showCallModal, setShowCallModal] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
-  const [filterDate, setFilterDate] = useState('');
+  const [filterDate, setFilterDate] = useState(getTodayDate());
   const [filterTable, setFilterTable] = useState('');
   const [responseNotes, setResponseNotes] = useState('');
+  const [viewMode, setViewMode] = useState('byTable'); // 'all', 'byTable', 'byDate'
+  const [selectedTable, setSelectedTable] = useState(null);
+  const [tables, setTables] = useState([]);
   const { currentUser } = useSelector((state) => state.user);
 
   const { addNotification } = useNotification();
@@ -26,6 +38,90 @@ export default function DashWaiterCalls() {
     pending: { color: 'warning', icon: HiClock, text: 'Bekliyor', bg: 'bg-yellow-100 text-yellow-800' },
     attended: { color: 'success', icon: HiCheck, text: 'Yanıtlandı', bg: 'bg-green-100 text-green-800' },
     cancelled: { color: 'failure', icon: HiX, text: 'İptal Edildi', bg: 'bg-red-100 text-red-800' }
+  };
+
+  // Fetch all tables
+  const fetchAllTables = async () => {
+    try {
+      const response = await fetch('/api/table/get-tables');
+      const data = await response.json();
+      if (response.ok) {
+        return data.tables || [];
+      } else {
+        console.error('Masalar yüklenemedi');
+        return [];
+      }
+    } catch (error) {
+      console.error('Masalar yüklenirken hata oluştu:', error);
+      return [];
+    }
+  };
+
+  // Update tables data based on calls and all tables
+  const updateTablesData = async (callsList) => {
+    const allTables = await fetchAllTables();
+
+    const tableMap = new Map();
+
+    // Initialize tables
+    allTables.forEach((table) => {
+      tableMap.set(table.tableNumber, {
+        tableNumber: table.tableNumber,
+        calls: [],
+        pendingCount: 0,
+        attendedCount: 0,
+        cancelledCount: 0,
+        totalCount: 0,
+        lastCallTime: null,
+      });
+    });
+
+    // Filter calls by today's date for summary tiles
+    const today = new Date();
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+    const filteredCalls = (callsList || []).filter((call) => {
+      const callDate = new Date(call.timestamp);
+      return callDate >= startOfDay && callDate < endOfDay;
+    });
+
+    filteredCalls.forEach((call) => {
+      const tableNumber = call.tableNumber;
+      if (!tableMap.has(tableNumber)) {
+        tableMap.set(tableNumber, {
+          tableNumber,
+          calls: [],
+          pendingCount: 0,
+          attendedCount: 0,
+          cancelledCount: 0,
+          totalCount: 0,
+          lastCallTime: null,
+        });
+      }
+
+      const tableData = tableMap.get(tableNumber);
+      tableData.calls.push(call);
+      tableData.totalCount++;
+
+      if (call.status === 'pending') tableData.pendingCount++;
+      else if (call.status === 'attended') tableData.attendedCount++;
+      else if (call.status === 'cancelled') tableData.cancelledCount++;
+
+      const callTime = new Date(call.timestamp);
+      if (!tableData.lastCallTime || callTime > tableData.lastCallTime) {
+        tableData.lastCallTime = callTime;
+      }
+    });
+
+    const tablesArray = Array.from(tableMap.values()).sort((a, b) => {
+      const aHasPending = a.pendingCount > 0;
+      const bHasPending = b.pendingCount > 0;
+      if (aHasPending !== bHasPending) return bHasPending ? 1 : -1;
+      return parseInt(a.tableNumber) - parseInt(b.tableNumber);
+    });
+
+    setTables(tablesArray);
   };
 
   // Fetch waiter calls
@@ -42,6 +138,7 @@ export default function DashWaiterCalls() {
       if (response.ok) {
         const newCallsList = data.waiterCalls || [];
         setWaiterCalls(newCallsList);
+        await updateTablesData(newCallsList);
       } else {
         setError(data.message || 'Garson çağrıları yüklenemedi');
         addNotification(data.message || 'Garson çağrıları yüklenemedi', 'error');
@@ -127,15 +224,36 @@ export default function DashWaiterCalls() {
     return 'normal';
   };
 
-  // Filter waiter calls
-  const filteredWaiterCalls = waiterCalls.filter(call => {
-    if (filterDate) {
-      const callDate = new Date(call.timestamp).toDateString();
-      const filterDateObj = new Date(filterDate).toDateString();
-      if (callDate !== filterDateObj) return false;
+  // Filter waiter calls based on viewMode and filters
+  const getFilteredCalls = () => {
+    let filtered = [...waiterCalls];
+
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter((call) => call.status === filterStatus);
     }
-    return true;
-  });
+
+    if (viewMode === 'byDate' && filterDate) {
+      filtered = filtered.filter((call) => {
+        const callDate = new Date(call.timestamp);
+        const callDateString = callDate.toISOString().split('T')[0];
+        return callDateString === filterDate;
+      });
+    } else if (viewMode === 'byTable' && filterDate) {
+      filtered = filtered.filter((call) => {
+        const callDate = new Date(call.timestamp);
+        const callDateString = callDate.toISOString().split('T')[0];
+        return callDateString === filterDate;
+      });
+    }
+
+    if (filterTable) {
+      filtered = filtered.filter((call) => call.tableNumber === filterTable);
+    }
+
+    return filtered;
+  };
+
+  const filteredWaiterCalls = getFilteredCalls();
 
   // Sort calls by urgency and time
   const sortedWaiterCalls = [...filteredWaiterCalls].sort((a, b) => {
@@ -163,6 +281,29 @@ export default function DashWaiterCalls() {
     return new Date(b.timestamp) - new Date(a.timestamp);
   });
 
+  // Get table calls
+  const getTableCalls = (tableNumber) => {
+    return sortedWaiterCalls.filter((call) => call.tableNumber === tableNumber);
+  };
+
+  // Handle viewMode change
+  const handleViewModeChange = (newViewMode) => {
+    setViewMode(newViewMode);
+    setSelectedTable(null);
+
+    if (newViewMode === 'all') {
+      setFilterTable('');
+      // Keep date empty? For consistency with orders, in 'all' we do not filter by date
+      // but we keep filterDate state untouched
+    } else if (newViewMode === 'byDate') {
+      setFilterTable('');
+      if (!filterDate) setFilterDate(getTodayDate());
+    } else if (newViewMode === 'byTable') {
+      setFilterTable('');
+      if (!filterDate) setFilterDate(getTodayDate());
+    }
+  };
+
   // Auto-refresh every 15 seconds
   useEffect(() => {
     fetchWaiterCalls();
@@ -177,17 +318,51 @@ export default function DashWaiterCalls() {
   };
 
   return (
-    <div className='flex-1 p-4 md:p-7'>
+    <div className='relative isolate flex-1 p-4 md:p-7'>
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 -z-50 transform-gpu overflow-hidden blur-3xl sm:-top-0"
+      >
+        <div
+          style={{
+            clipPath:
+              'polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 85% 110%, 90% 125%, 95% 140%, 98% 155%, 100% 170%, 100% 200%)',
+          }}
+          className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-yellow-300 to-red-500 opacity-30 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem] animate-pulse"
+        />
+      </div>
       {/* Header */}
       <div className='flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4'>
         <div>
           <h1 className='text-3xl font-semibold text-gray-800 dark:text-white'>Garson Çağrıları</h1>
           <p className='text-gray-600 dark:text-gray-400 mt-1'>
-            Toplam {filteredWaiterCalls.length} çağrı
-            {filteredWaiterCalls.filter(call => call.status === 'pending').length > 0 && (
-              <span className='ml-2 text-red-600 font-semibold'>
-                ({filteredWaiterCalls.filter(call => call.status === 'pending').length} bekliyor)
-              </span>
+            {viewMode === 'all' ? (
+              <>
+                Toplam {filteredWaiterCalls.length} çağrı
+                {filteredWaiterCalls.filter(call => call.status === 'pending').length > 0 && (
+                  <span className='ml-2 text-red-600 font-semibold'>
+                    ({filteredWaiterCalls.filter(call => call.status === 'pending').length} bekliyor)
+                  </span>
+                )}
+              </>
+            ) : viewMode === 'byDate' ? (
+              <>
+                {filterDate ? `${filterDate} Tarihli Çağrılar` : 'Tarih Seçin'}
+                {filterDate && (
+                  <span className='ml-2 text-gray-600'>
+                    ({filteredWaiterCalls.length} çağrı mevcut)
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                {selectedTable ? `Masa ${selectedTable} Çağrıları` : 'Bir Masa Seçin'}
+                {selectedTable && (
+                  <span className='ml-2 text-gray-600'>
+                    ({getTableCalls(selectedTable).length} çağrı mevcut) ({filterDate} tarihli)
+                  </span>
+                )}
+              </>
             )}
           </p>
         </div>
@@ -200,44 +375,160 @@ export default function DashWaiterCalls() {
         </div>
       </div>
 
-      {/* Filters */}
-      <Card className="mb-6">
-        <div className='flex flex-col md:flex-row gap-4'>
-          <div className="flex-1">
-            <Select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              icon={HiFilter}
-            >
-              <option value="all">Tüm Durumlar</option>
-              <option value="pending">Bekliyor</option>
-              <option value="attended">Yanıtlandı</option>
-              <option value="cancelled">İptal Edildi</option>
-            </Select>
-          </div>
+      {/* View Mode Tabs */}
+      <Card
+        className="mb-4"
+        theme={{
+          root: { children: 'flex h-full flex-col justify-center gap-1 p-2 md:p-3' },
+        }}
+      >
+        <div className="border-b border-gray-200 dark:border-gray-700">
+          <ul className="flex flex-wrap -mb-px text-sm font-medium text-center">
+            <li className="mr-1">
+              <button
+                onClick={() => handleViewModeChange('byTable')}
+                className={`inline-flex items-center justify-center p-2 border-b-2 rounded-t-lg ${
+                  viewMode === 'byTable'
+                    ? 'text-blue-600 border-blue-600 active dark:text-blue-500 dark:border-blue-500'
+                    : 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300'
+                }`}
+              >
+                <MdRestaurant className="mr-2 h-4 w-4" />
+                Masalara Göre
+              </button>
+            </li>
+            <li className="mr-1">
+              <button
+                onClick={() => handleViewModeChange('byDate')}
+                className={`inline-flex items-center justify-center p-2 border-b-2 rounded-t-lg ${
+                  viewMode === 'byDate'
+                    ? 'text-blue-600 border-blue-600 active dark:text-blue-500 dark:border-blue-500'
+                    : 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300'
+                }`}
+              >
+                <HiCalendar className="mr-2 h-4 w-4" />
+                Güne Göre
+              </button>
+            </li>
+            <li className="mr-1">
+              <button
+                onClick={() => handleViewModeChange('all')}
+                className={`inline-flex items-center justify-center p-2 border-b-2 rounded-t-lg ${
+                  viewMode === 'all'
+                    ? 'text-blue-600 border-blue-600 active dark:text-blue-500 dark:border-blue-500'
+                    : 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300'
+                }`}
+              >
+                <HiViewBoards className="mr-2 h-4 w-4" />
+                Bütün Çağrılar
+              </button>
+            </li>
+          </ul>
+        </div>
 
-          <div className="flex-1">
-            <TextInput
-              type="text"
-              placeholder="Masa Numarası"
-              value={filterTable}
-              onChange={(e) => setFilterTable(e.target.value)}
-              icon={MdRestaurant}
-            />
-          </div>
-
-          <div className="flex-1">
-            <TextInput
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              icon={HiCalendar}
-            />
-          </div>
+        <div className={`${selectedTable ? 'mt-2' : `${viewMode === 'byTable' ? 'mt-2 hidden' : 'mt-2'}`}`}>
+          {viewMode === 'all' ? (
+            // Filters for All Calls
+            <div className='flex flex-col md:flex-row gap-4'>
+              <div className="flex-1">
+                <TextInput
+                  type="text"
+                  placeholder="Masa Numarası"
+                  value={filterTable}
+                  onChange={(e) => setFilterTable(e.target.value)}
+                  icon={MdRestaurant}
+                />
+              </div>
+              <div className="flex-1">
+                <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} icon={HiFilter}>
+                  <option value="all">Tüm Durumlar</option>
+                  <option value="pending">Bekliyor</option>
+                  <option value="attended">Yanıtlandı</option>
+                  <option value="cancelled">İptal Edildi</option>
+                </Select>
+              </div>
+            </div>
+          ) : viewMode === 'byDate' ? (
+            // Filters for Date View
+            <div className='flex flex-col md:flex-row gap-4'>
+              <div className="flex-1 relative">
+                <Datepicker
+                  language="tr-TR"
+                  labelTodayButton="Bugün"
+                  labelClearButton="Temizle"
+                  value={filterDate ? new Date(filterDate + 'T00:00:00') : undefined}
+                  onChange={(date) => {
+                    if (date) {
+                      const year = date.getFullYear();
+                      const month = String(date.getMonth() + 1).padStart(2, '0');
+                      const day = String(date.getDate()).padStart(2, '0');
+                      setFilterDate(`${year}-${month}-${day}`);
+                    }
+                  }}
+                  theme={{
+                    popup: {
+                      footer: {
+                        base: 'mt-2 flex space-x-2',
+                        button: {
+                          base: 'w-full rounded-lg px-5 py-2 text-center text-sm font-medium focus:ring-4 focus:ring-cyan-300',
+                          today: 'bg-cyan-700 text-white hover:bg-cyan-800 dark:bg-cyan-600 dark:hover:bg-cyan-700',
+                          clear: 'hidden',
+                        },
+                      },
+                    },
+                  }}
+                />
+              </div>
+              <div className="flex-1">
+                <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} icon={HiFilter}>
+                  <option value="all">Tüm Durumlar</option>
+                  <option value="pending">Bekliyor</option>
+                  <option value="attended">Yanıtlandı</option>
+                  <option value="cancelled">İptal Edildi</option>
+                </Select>
+              </div>
+            </div>
+          ) : (
+            // Filters for Table View
+            <>
+              {selectedTable && (
+                <div className='flex flex-col md:flex-row gap-4'>
+                  <div className="flex-1">
+                    <Datepicker
+                      language="tr-TR"
+                      labelTodayButton="Bugün"
+                      labelClearButton="Temizle"
+                      value={filterDate ? new Date(filterDate + 'T00:00:00') : undefined}
+                      onChange={(date) => {
+                        if (date) {
+                          const year = date.getFullYear();
+                          const month = String(date.getMonth() + 1).padStart(2, '0');
+                          const day = String(date.getDate()).padStart(2, '0');
+                          setFilterDate(`${year}-${month}-${day}`);
+                        }
+                      }}
+                      theme={{
+                        popup: {
+                          footer: {
+                            base: 'mt-2 flex space-x-2',
+                            button: {
+                              base: 'w-full rounded-lg px-5 py-2 text-center text-sm font-medium focus:ring-4 focus:ring-cyan-300',
+                              today: 'bg-cyan-700 text-white hover:bg-cyan-800 dark:bg-cyan-600 dark:hover:bg-cyan-700',
+                              clear: 'hidden',
+                            },
+                          },
+                        },
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </Card>
 
-      {/* Waiter Calls Grid */}
+      {/* Content */}
       {loading ? (
         <div className="flex justify-center items-center h-64">
           <Spinner size="xl" />
@@ -246,113 +537,324 @@ export default function DashWaiterCalls() {
         <Alert color="failure">
           <span>{error}</span>
         </Alert>
-      ) : sortedWaiterCalls.length === 0 ? (
-        <Card>
-          <div className="text-center py-8">
-            <BiDish className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Garson çağrısı bulunamadı</h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Seçilen kriterlere uygun garson çağrısı bulunmuyor.
-            </p>
-          </div>
-        </Card>
-      ) : (
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-          {sortedWaiterCalls.map((call) => {
-            const status = statusConfig[call.status];
-            const StatusIcon = status.icon;
-            const urgencyLevel = getUrgencyLevel(call.timestamp);
+      ) : viewMode === 'all' || viewMode === 'byDate' ? (
+        // All Calls View or Date View
+        sortedWaiterCalls.length === 0 ? (
+          <Card>
+            <div className="text-center py-8">
+              <BiDish className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Garson çağrısı bulunamadı</h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {viewMode === 'byDate' && !filterDate ? 'Lütfen bir tarih seçin.' : 'Seçilen kriterlere uygun çağrı bulunmuyor.'}
+              </p>
+            </div>
+          </Card>
+        ) : (
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+            {sortedWaiterCalls.map((call) => {
+              const status = statusConfig[call.status];
+              const StatusIcon = status.icon;
+              const urgencyLevel = getUrgencyLevel(call.timestamp);
 
-            return (
-              <Card
-                key={call._id}
-                className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${call.status === 'pending' ? 'ring-2 ring-yellow-200' : ''
-                  } ${urgencyLevel === 'urgent' && call.status === 'pending' ? 'ring-2 ring-orange-400 bg-orange-50' : ''
-                  } ${urgencyLevel === 'critical' && call.status === 'pending' ? 'ring-2 ring-red-400 bg-red-50' : ''
+              return (
+                <Card
+                  key={call._id}
+                  className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
+                    call.status === 'pending' ? 'ring-2 ring-yellow-200' : ''
+                  } ${
+                    urgencyLevel === 'urgent' && call.status === 'pending' ? 'ring-2 ring-orange-400 bg-orange-50' : ''
+                  } ${
+                    urgencyLevel === 'critical' && call.status === 'pending' ? 'ring-2 ring-red-400 bg-red-50' : ''
                   }`}
-                onClick={() => {
-                  setSelectedCall(call);
-                  setShowCallModal(true);
-                }}
-              >
-                <div className='flex justify-between items-start mb-3'>
-                  <div>
-                    <h3 className='text-lg font-semibold text-gray-800 dark:text-white'>
-                      Masa {call.tableNumber}
-                    </h3>
-                    <p className='text-sm text-gray-600 dark:text-gray-400'>
-                      {formatDate(call.timestamp)}
-                    </p>
-                  </div>
-                  <Badge color={status.color} className={status.bg}>
-                    <div className='flex items-center'>
-                      <StatusIcon className="mr-1 h-3 w-3" />
-                      {status.text}
+                  onClick={() => {
+                    setSelectedCall(call);
+                    setShowCallModal(true);
+                  }}
+                >
+                  <div className='flex justify-between items-start mb-3'>
+                    <div>
+                      <h3 className='text-lg font-semibold text-gray-800 dark:text-white'>
+                        Masa {call.tableNumber}
+                      </h3>
+                      <p className='text-sm text-gray-600 dark:text-gray-400'>{formatDate(call.timestamp)}</p>
                     </div>
-                  </Badge>
-                </div>
+                    <Badge color={status.color} className={status.bg}>
+                      <div className='flex items-center'>
+                        <StatusIcon className="mr-1 h-3 w-3" />
+                        {status.text}
+                      </div>
+                    </Badge>
+                  </div>
 
-                <div className='space-y-2'>
-                  <div className='flex justify-between text-sm'>
-                    <span className='text-gray-600 dark:text-gray-400'>Geçen Süre:</span>
-                    <span className={
-                      urgencyLevel === 'critical' && call.status === 'pending'
-                        ? 'text-red-600 font-semibold'
-                        : urgencyLevel === 'urgent' && call.status === 'pending'
-                          ? 'text-orange-600 font-semibold'
-                          : call.status === 'pending'
+                  <div className='space-y-2'>
+                    <div className='flex justify-between text-sm'>
+                      <span className='text-gray-600 dark:text-gray-400'>Geçen Süre:</span>
+                      <span
+                        className={
+                          urgencyLevel === 'critical' && call.status === 'pending'
+                            ? 'text-red-600 font-semibold'
+                            : urgencyLevel === 'urgent' && call.status === 'pending'
+                            ? 'text-orange-600 font-semibold'
+                            : call.status === 'pending'
                             ? 'text-yellow-600 font-semibold'
                             : ''
-                    }>
-                      {getTimeElapsed(call.timestamp)}
-                    </span>
+                        }
+                      >
+                        {getTimeElapsed(call.timestamp)}
+                      </span>
+                    </div>
+
+                    {call.attendedBy && (
+                      <div className='flex justify-between text-sm'>
+                        <span className='text-gray-600 dark:text-gray-400'>Yanıtlayan:</span>
+                        <span className='font-medium dark:text-gray-300'>{call.attendedBy}</span>
+                      </div>
+                    )}
+
+                    {call.attendedAt && (
+                      <div className='flex justify-between text-sm'>
+                        <span className='text-gray-600 dark:text-gray-400'>Yanıtlanma:</span>
+                        <span className='dark:text-gray-300'>{formatDate(call.attendedAt)}</span>
+                      </div>
+                    )}
                   </div>
 
-                  {call.attendedBy && (
-                    <div className='flex justify-between text-sm'>
-                      <span className='text-gray-600 dark:text-gray-400'>Yanıtlayan:</span>
-                      <span className='font-medium dark:text-gray-300'>{call.attendedBy}</span>
+                  {call.notes && (
+                    <div className='mt-3 pt-3 border-t border-gray-200'>
+                      <p className='text-sm text-gray-600 dark:text-gray-400'>
+                        <span className='font-medium dark:text-gray-300'>Not:</span> {call.notes}
+                      </p>
                     </div>
                   )}
 
-                  {call.attendedAt && (
-                    <div className='flex justify-between text-sm'>
-                      <span className='text-gray-600 dark:text-gray-400'>Yanıtlanma:</span>
-                      <span className='dark:text-gray-300'>{formatDate(call.attendedAt)}</span>
+                  {/* Urgency indicator */}
+                  {call.status === 'pending' && urgencyLevel === 'critical' && (
+                    <div className='mt-3 pt-3 border-t border-red-200'>
+                      <div className='flex items-center text-red-600'>
+                        <HiBell className="mr-1 h-4 w-4 animate-pulse" />
+                        <span className='text-sm font-semibold'>Kritik!</span>
+                      </div>
                     </div>
                   )}
+
+                  {/* High urgency indicator */}
+                  {call.status === 'pending' && urgencyLevel === 'urgent' && (
+                    <div className='mt-3 pt-3 border-t border-orange-200'>
+                      <div className='flex items-center text-orange-600'>
+                        <HiBell className="mr-1 h-4 w-4" />
+                        <span className='text-sm font-semibold'>Acil!</span>
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )
+      ) : (
+        // Tables View
+        <div>
+          {!selectedTable ? (
+            tables.length === 0 ? (
+              <Card>
+                <div className="text-center py-8">
+                  <BiDish className="mx-auto h-12 w-12 text-gray-400" />
+                  <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Masa bulunamadı</h3>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Henüz hiç masa oluşturulmamış.</p>
                 </div>
-
-                {call.notes && (
-                  <div className='mt-3 pt-3 border-t border-gray-200'>
-                    <p className='text-sm text-gray-600 dark:text-gray-400'>
-                      <span className='font-medium dark:text-gray-300'>Not:</span> {call.notes}
-                    </p>
-                  </div>
-                )}
-
-                {/* Urgency indicator */}
-                {call.status === 'pending' && urgencyLevel === 'critical' && (
-                  <div className='mt-3 pt-3 border-t border-red-200'>
-                    <div className='flex items-center text-red-600'>
-                      <HiBell className="mr-1 h-4 w-4 animate-pulse" />
-                      <span className='text-sm font-semibold'>Kritik!</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* High urgency indicator */}
-                {call.status === 'pending' && urgencyLevel === 'urgent' && (
-                  <div className='mt-3 pt-3 border-t border-orange-200'>
-                    <div className='flex items-center text-orange-600'>
-                      <HiBell className="mr-1 h-4 w-4" />
-                      <span className='text-sm font-semibold'>Acil!</span>
-                    </div>
-                  </div>
-                )}
               </Card>
-            );
-          })}
+            ) : (
+              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+                {tables.map((table) => {
+                  const tableCalls = getTableCalls(table.tableNumber);
+                  const hasUrgentCalls = tableCalls.some(
+                    (call) => call.status === 'pending' && getUrgencyLevel(call.timestamp) === 'critical'
+                  );
+
+                  return (
+                    <Card
+                      key={table.tableNumber}
+                      className={`md:max-w-xsm min-w-xs flex flex-col justify-between cursor-pointer transition-all duration-200 hover:shadow-lg ${
+                        table.totalCount === 0
+                          ? 'ring-1 ring-gray-200 bg-gray-50'
+                          : hasUrgentCalls
+                          ? 'ring-2 ring-red-400 bg-red-50'
+                          : table.pendingCount > 0
+                          ? 'ring-2 ring-yellow-200'
+                          : ''
+                      }`}
+                      onClick={() => setSelectedTable(table.tableNumber)}
+                    >
+                      <div className='flex justify-between items-start mb-3'>
+                        <div className='flex flex-col items-start gap-2'>
+                          <div className='w-20 h-16 mx-auto bg-gradient-to-br ml-0 from-yellow-300 to-red-600 rounded-full flex items-center justify-center text-white text-2xl font-bold'>
+                            <MdOutlineTableBar className='w-10 h-10' />
+                            <span className='text-2xl font-semibold'>{table.tableNumber}</span>
+                          </div>
+                          <div>
+                            <h3 className='text-lg font-semibold text-gray-800 dark:text-white'>Masa {table.tableNumber}</h3>
+                            <p className='text-sm text-gray-600 dark:text-gray-400'>
+                              {table.totalCount > 0 ? `Bugün ${table.totalCount} çağrı` : 'Bugün çağrı yok'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className='text-right'>
+                          {table.totalCount === 0 ? (
+                            <Badge color="gray" className="mb-1">
+                              Boş
+                            </Badge>
+                          ) : (
+                            <>
+                              {table.pendingCount > 0 && (
+                                <Badge color="warning" className="mb-1">
+                                  {table.pendingCount} Bekliyor
+                                </Badge>
+                              )}
+                              {table.attendedCount > 0 && (
+                                <Badge color="success" className="mb-1">
+                                  {table.attendedCount} Yanıtlandı
+                                </Badge>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className='space-y-2'>
+                        {table.totalCount > 0 ? (
+                          <>
+                            <div className='flex justify-between text-sm'>
+                              <span className='text-gray-600 dark:text-gray-400'>Bugün Son Çağrı:</span>
+                              <span className='dark:text-gray-300'>
+                                {table.lastCallTime ? formatDate(table.lastCallTime) : 'Yok'}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className='text-center py-2'>
+                            <p className='text-sm text-gray-500 dark:text-gray-400'>Bugün henüz çağrı yok</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Urgency indicator */}
+                      {table.totalCount > 0 && hasUrgentCalls && (
+                        <div className='mt-3 pt-3 border-t border-red-200'>
+                          <div className='flex items-center text-red-600'>
+                            <HiClock className="mr-1 h-4 w-4 animate-pulse" />
+                            <span className='text-sm font-semibold'>Kritik Çağrılar!</span>
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            // Selected table calls
+            <div>
+              <div className='mb-4'>
+                <Button color="gray" onClick={() => setSelectedTable(null)} className='mb-4'>
+                  ← Masalara Geri Dön
+                </Button>
+              </div>
+
+              {getTableCalls(selectedTable).length === 0 ? (
+                <Card>
+                  <div className='text-center py-8'>
+                    <BiDish className='mx-auto h-12 w-12 text-gray-400' />
+                    <h3 className='mt-2 text-sm font-medium text-gray-900 dark:text-white'>Çağrı bulunamadı</h3>
+                    <p className='mt-1 text-sm text-gray-500 dark:text-gray-400'>Masa {selectedTable} için seçilen kriterlere uygun çağrı bulunmuyor.</p>
+                  </div>
+                </Card>
+              ) : (
+                <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+                  {getTableCalls(selectedTable).map((call) => {
+                    const status = statusConfig[call.status];
+                    const StatusIcon = status.icon;
+                    const urgencyLevel = getUrgencyLevel(call.timestamp);
+                    return (
+                      <Card
+                        key={call._id}
+                        className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
+                          call.status === 'pending' ? 'ring-2 ring-yellow-200' : ''
+                        } ${
+                          urgencyLevel === 'urgent' && call.status === 'pending'
+                            ? 'ring-2 ring-orange-400 bg-orange-50'
+                            : ''
+                        } ${
+                          urgencyLevel === 'critical' && call.status === 'pending' ? 'ring-2 ring-red-400 bg-red-50' : ''
+                        }`}
+                        onClick={() => {
+                          setSelectedCall(call);
+                          setShowCallModal(true);
+                        }}
+                      >
+                        <div className='flex justify-between items-start mb-3'>
+                          <div>
+                            <h3 className='text-lg font-semibold text-gray-800 dark:text-white'>Masa {call.tableNumber}</h3>
+                            <p className='text-sm text-gray-600 dark:text-gray-400'>{formatDate(call.timestamp)}</p>
+                          </div>
+                          <Badge color={status.color} className={status.bg}>
+                            <div className='flex items-center'>
+                              <StatusIcon className='mr-1 h-3 w-3' />
+                              {status.text}
+                            </div>
+                          </Badge>
+                        </div>
+                        <div className='space-y-2'>
+                          <div className='flex justify-between text-sm'>
+                            <span className='text-gray-600 dark:text-gray-400'>Geçen Süre:</span>
+                            <span
+                              className={
+                                urgencyLevel === 'critical' && call.status === 'pending'
+                                  ? 'text-red-600 font-semibold'
+                                  : urgencyLevel === 'urgent' && call.status === 'pending'
+                                  ? 'text-orange-600 font-semibold'
+                                  : call.status === 'pending'
+                                  ? 'text-yellow-600 font-semibold'
+                                  : ''
+                              }
+                            >
+                              {getTimeElapsed(call.timestamp)}
+                            </span>
+                          </div>
+                          {call.attendedBy && (
+                            <div className='flex justify-between text-sm'>
+                              <span className='text-gray-600 dark:text-gray-400'>Yanıtlayan:</span>
+                              <span className='font-medium dark:text-gray-300'>{call.attendedBy}</span>
+                            </div>
+                          )}
+                          {call.attendedAt && (
+                            <div className='flex justify-between text-sm'>
+                              <span className='text-gray-600 dark:text-gray-400'>Yanıtlanma:</span>
+                              <span className='dark:text-gray-300'>{formatDate(call.attendedAt)}</span>
+                            </div>
+                          )}
+                        </div>
+                        {call.notes && (
+                          <div className='mt-3 pt-3 border-t border-gray-200'>
+                            <p className='text-sm text-gray-600 dark:text-gray-400'>
+                              <span className='font-medium dark:text-gray-300'>Not:</span> {call.notes}
+                            </p>
+                          </div>
+                        )}
+                        {call.status === 'pending' && urgencyLevel === 'critical' && (
+                          <div className='mt-3 pt-3 border-t border-red-200'>
+                            <div className='flex items-center text-red-600'>
+                              <HiBell className='mr-1 h-4 w-4 animate-pulse' />
+                              <span className='text-sm font-semibold'>Kritik!</span>
+                            </div>
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

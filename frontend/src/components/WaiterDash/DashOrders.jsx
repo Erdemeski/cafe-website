@@ -1,10 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, Badge, Button, Modal, TextInput, Select, Alert, Spinner } from 'flowbite-react';
+import { Card, Badge, Button, Modal, TextInput, Select, Alert, Spinner, Datepicker } from 'flowbite-react';
 import { HiClock, HiCheck, HiX, HiEye, HiRefresh, HiFilter, HiCalendar, HiViewBoards } from 'react-icons/hi';
 import { MdRestaurant, MdLocalShipping, MdDone, MdCancel, MdOutlineTableBar } from 'react-icons/md';
 import { useNotification } from './NotificationProvider';
 
 export default function DashOrders() {
+  // Get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -12,9 +21,9 @@ export default function DashOrders() {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
-  const [filterDate, setFilterDate] = useState('');
+  const [filterDate, setFilterDate] = useState(getTodayDate());
   const [filterTable, setFilterTable] = useState('');
-  const [viewMode, setViewMode] = useState('byTable'); // 'all' or 'byTable'
+  const [viewMode, setViewMode] = useState('byTable'); // 'all', 'byTable', or 'byDate'
   const [selectedTable, setSelectedTable] = useState(null);
   const [tables, setTables] = useState([]);
 
@@ -234,15 +243,42 @@ export default function DashOrders() {
     return 'normal';
   };
 
-  // Filter orders
-  const filteredOrders = orders.filter(order => {
-    if (filterDate) {
-      const orderDate = new Date(order.createdAt).toDateString();
-      const filterDateObj = new Date(filterDate).toDateString();
-      if (orderDate !== filterDateObj) return false;
+  // Filter orders based on viewMode and filters
+  const getFilteredOrders = () => {
+    let filtered = [...orders];
+
+    // Apply status filter
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(order => order.status === filterStatus);
     }
-    return true;
-  });
+
+    // Apply date filter based on viewMode
+    if (viewMode === 'byDate' && filterDate) {
+      // In byDate mode, filter by selected date
+      filtered = filtered.filter(order => {
+        const orderDate = new Date(order.createdAt);
+        const orderDateString = orderDate.toISOString().split('T')[0];
+        return orderDateString === filterDate;
+      });
+    } else if (viewMode === 'byTable' && filterDate) {
+      // In byTable mode, filter by selected date (defaults to today)
+      filtered = filtered.filter(order => {
+        const orderDate = new Date(order.createdAt);
+        const orderDateString = orderDate.toISOString().split('T')[0];
+        return orderDateString === filterDate;
+      });
+    }
+    // In 'all' mode, no date filtering is applied
+
+    // Apply table filter
+    if (filterTable) {
+      filtered = filtered.filter(order => order.tableNumber === filterTable);
+    }
+
+    return filtered;
+  };
+
+  const filteredOrders = getFilteredOrders();
 
   // Sort orders by urgency and time
   const sortedOrders = [...filteredOrders].sort((a, b) => {
@@ -272,6 +308,30 @@ export default function DashOrders() {
   // Get table orders
   const getTableOrders = (tableNumber) => {
     return sortedOrders.filter(order => order.tableNumber === tableNumber);
+  };
+
+  // Handle viewMode change
+  const handleViewModeChange = (newViewMode) => {
+    setViewMode(newViewMode);
+    setSelectedTable(null);
+
+    // Reset filters based on viewMode
+    if (newViewMode === 'all') {
+      setFilterDate('');
+      setFilterTable('');
+    } else if (newViewMode === 'byDate') {
+      setFilterTable('');
+      // Set to today's date if no date is currently selected
+      if (!filterDate) {
+        setFilterDate(getTodayDate());
+      }
+    } else if (newViewMode === 'byTable') {
+      setFilterTable('');
+      // Set to today's date if no date is currently selected
+      if (!filterDate) {
+        setFilterDate(getTodayDate());
+      }
+    }
   };
 
   // Auto-refresh every 30 seconds
@@ -376,7 +436,19 @@ export default function DashOrders() {
   };
 
   return (
-    <div className='flex-1 p-4 md:p-7'>
+    <div className='relative isolate flex-1 p-4 md:p-7'>
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 -z-50 transform-gpu overflow-hidden blur-3xl sm:-top-0"
+      >
+        <div
+          style={{
+            clipPath:
+              'polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 85% 110%, 90% 125%, 95% 140%, 98% 155%, 100% 170%, 100% 200%)',
+          }}
+          className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-pink-500 to-blue-600 opacity-30 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem] animate-pulse"
+        />
+      </div>
       {/* Header */}
       <div className='flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4'>
         <div>
@@ -391,12 +463,21 @@ export default function DashOrders() {
                   </span>
                 )}
               </>
+            ) : viewMode === 'byDate' ? (
+              <>
+                {filterDate ? `${filterDate} Tarihli Siparişler` : 'Tarih Seçin'}
+                {filterDate && (
+                  <span className='ml-2 text-gray-600'>
+                    ({filteredOrders.length} sipariş mevcut)
+                  </span>
+                )}
+              </>
             ) : (
               <>
-                {selectedTable ? `Masa ${selectedTable} Siparişleri` : 'Masaları Seçin'}
+                {selectedTable ? `Masa ${selectedTable} Siparişleri` : 'Bir Masa Seçin'}
                 {selectedTable && (
                   <span className='ml-2 text-gray-600'>
-                    ({getTableOrders(selectedTable).length} sipariş)
+                    ({getTableOrders(selectedTable).length} sipariş mevcut) ({filterDate} tarihli)
                   </span>
                 )}
               </>
@@ -413,31 +494,19 @@ export default function DashOrders() {
       </div>
 
       {/* View Mode Tabs */}
-      <Card className="mb-6">
+      <Card
+        className="mb-4"
+        theme={{
+          root: {
+            children: 'flex h-full flex-col justify-center gap-1 p-2 md:p-3'
+          }
+        }}>
         <div className="border-b border-gray-200 dark:border-gray-700">
           <ul className="flex flex-wrap -mb-px text-sm font-medium text-center">
-            <li className="mr-2">
+            <li className="mr-1">
               <button
-                onClick={() => {
-                  setViewMode('all');
-                  setSelectedTable(null);
-                }}
-                className={`inline-flex items-center justify-center p-4 border-b-2 rounded-t-lg ${viewMode === 'all'
-                  ? 'text-blue-600 border-blue-600 active dark:text-blue-500 dark:border-blue-500'
-                  : 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300'
-                  }`}
-              >
-                <HiViewBoards className="mr-2 h-4 w-4" />
-                Bütün Siparişleri Sırala
-              </button>
-            </li>
-            <li className="mr-2">
-              <button
-                onClick={() => {
-                  setViewMode('byTable');
-                  setSelectedTable(null);
-                }}
-                className={`inline-flex items-center justify-center p-4 border-b-2 rounded-t-lg ${viewMode === 'byTable'
+                onClick={() => handleViewModeChange('byTable')}
+                className={`inline-flex items-center justify-center p-2 border-b-2 rounded-t-lg ${viewMode === 'byTable'
                   ? 'text-blue-600 border-blue-600 active dark:text-blue-500 dark:border-blue-500'
                   : 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300'
                   }`}
@@ -446,13 +515,46 @@ export default function DashOrders() {
                 Masalara Göre
               </button>
             </li>
+            <li className="mr-1">
+              <button
+                onClick={() => handleViewModeChange('byDate')}
+                className={`inline-flex items-center justify-center p-2 border-b-2 rounded-t-lg ${viewMode === 'byDate'
+                  ? 'text-blue-600 border-blue-600 active dark:text-blue-500 dark:border-blue-500'
+                  : 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300'
+                  }`}
+              >
+                <HiCalendar className="mr-2 h-4 w-4" />
+                Güne Göre
+              </button>
+            </li>
+            <li className="mr-1">
+              <button
+                onClick={() => handleViewModeChange('all')}
+                className={`inline-flex items-center justify-center p-2 border-b-2 rounded-t-lg ${viewMode === 'all'
+                  ? 'text-blue-600 border-blue-600 active dark:text-blue-500 dark:border-blue-500'
+                  : 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300'
+                  }`}
+              >
+                <HiViewBoards className="mr-2 h-4 w-4" />
+                Bütün Siparişler
+              </button>
+            </li>
           </ul>
         </div>
 
-        <div className="mt-4">
+        <div className={`${selectedTable ? 'mt-2' : `${viewMode === 'byTable' ? 'mt-2 hidden' : 'mt-2'}`}`}>
           {viewMode === 'all' ? (
             /* Filters for All Orders */
             <div className='flex flex-col md:flex-row gap-4'>
+              <div className="flex-1">
+                <TextInput
+                  type="text"
+                  placeholder="Masa Numarası"
+                  value={filterTable}
+                  onChange={(e) => setFilterTable(e.target.value)}
+                  icon={MdRestaurant}
+                />
+              </div>
               <div className="flex-1">
                 <Select
                   value={filterStatus}
@@ -467,49 +569,93 @@ export default function DashOrders() {
                   <option value="cancelled">İptal Edildi</option>
                 </Select>
               </div>
-
-              <div className="flex-1">
-                <TextInput
-                  type="text"
-                  placeholder="Masa Numarası"
-                  value={filterTable}
-                  onChange={(e) => setFilterTable(e.target.value)}
-                  icon={MdRestaurant}
+            </div>
+          ) : viewMode === 'byDate' ? (
+            /* Filters for Date View */
+            <div className='flex flex-col md:flex-row gap-4'>
+              <div className="flex-1 relative">
+                <Datepicker
+                  language="tr-TR"
+                  labelTodayButton="Bugün"
+                  labelClearButton="Temizle"
+                  value={filterDate ? new Date(filterDate + 'T00:00:00') : undefined}
+                  onChange={(date) => {
+                    if (date) {
+                      const year = date.getFullYear();
+                      const month = String(date.getMonth() + 1).padStart(2, '0');
+                      const day = String(date.getDate()).padStart(2, '0');
+                      setFilterDate(`${year}-${month}-${day}`);
+                    } else {
+                      setFilterDate('');
+                    }
+                  }}
+                  theme={{
+                    popup: {
+                      footer: {
+                        base: "mt-2 flex space-x-2",
+                        button: {
+                          base: "w-full rounded-lg px-5 py-2 text-center text-sm font-medium focus:ring-4 focus:ring-cyan-300",
+                          today: "bg-cyan-700 text-white hover:bg-cyan-800 dark:bg-cyan-600 dark:hover:bg-cyan-700",
+                          clear: "hidden"
+                        }
+                      }
+                    }
+                  }}
                 />
               </div>
-
               <div className="flex-1">
-                <TextInput
-                  type="date"
-                  value={filterDate}
-                  onChange={(e) => setFilterDate(e.target.value)}
-                  icon={HiCalendar}
-                />
+                <Select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  icon={HiFilter}
+                >
+                  <option value="all">Tüm Durumlar</option>
+                  <option value="pending">Bekliyor</option>
+                  <option value="preparing">Hazırlanıyor</option>
+                  <option value="ready">Hazır</option>
+                  <option value="served">Servis Edildi</option>
+                  <option value="cancelled">İptal Edildi</option>
+                </Select>
               </div>
             </div>
           ) : (
             /* Filters for Table View */
-            <div className='flex flex-col md:flex-row gap-4'>
-              <div className="flex-1">
-                <TextInput
-                  type="date"
-                  value={filterDate}
-                  onChange={(e) => setFilterDate(e.target.value)}
-                  icon={HiCalendar}
-                  placeholder="Tarihe Göre Filtrele"
-                />
-              </div>
-
-              <div className="flex-1">
-                <Button
-                  color="gray"
-                  onClick={() => setSelectedTable(null)}
-                  disabled={!selectedTable}
-                >
-                  Tüm Masaları Göster
-                </Button>
-              </div>
-            </div>
+            <>
+              {selectedTable && (
+                <div className='flex flex-col md:flex-row gap-4'>
+                  <div className="flex-1">
+                    <Datepicker
+                      language="tr-TR"
+                      labelTodayButton="Bugün"
+                      labelClearButton="Temizle"
+                      value={filterDate ? new Date(filterDate + 'T00:00:00') : undefined}
+                      onChange={(date) => {
+                        if (date) {
+                          const year = date.getFullYear();
+                          const month = String(date.getMonth() + 1).padStart(2, '0');
+                          const day = String(date.getDate()).padStart(2, '0');
+                          setFilterDate(`${year}-${month}-${day}`);
+                        } else {
+                          setFilterDate('');
+                        }
+                      }}
+                      theme={{
+                        popup: {
+                          footer: {
+                            base: "mt-2 flex space-x-2",
+                            button: {
+                              base: "w-full rounded-lg px-5 py-2 text-center text-sm font-medium focus:ring-4 focus:ring-cyan-300",
+                              today: "bg-cyan-700 text-white hover:bg-cyan-800 dark:bg-cyan-600 dark:hover:bg-cyan-700",
+                              clear: "hidden"
+                            }
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </Card>
@@ -523,15 +669,18 @@ export default function DashOrders() {
         <Alert color="failure">
           <span>{error}</span>
         </Alert>
-      ) : viewMode === 'all' ? (
-        // All Orders View
+      ) : viewMode === 'all' || viewMode === 'byDate' ? (
+        // All Orders View or Date View
         sortedOrders.length === 0 ? (
           <Card>
             <div className="text-center py-8">
               <MdRestaurant className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Sipariş bulunamadı</h3>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Seçilen kriterlere uygun sipariş bulunmuyor.
+                {viewMode === 'byDate' && !filterDate
+                  ? 'Lütfen bir tarih seçin.'
+                  : 'Seçilen kriterlere uygun sipariş bulunmuyor.'
+                }
               </p>
             </div>
           </Card>

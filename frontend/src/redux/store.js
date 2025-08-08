@@ -6,6 +6,7 @@ import themeReducer from './theme/themeSlice.js';
 import languageReducer from './page_Language/languageSlice.js';
 import currencyReducer from './currency/currencySlice.js';
 import tableCookieReducer from './table/tableCookieSlice.js';
+import notificationReducer from './notification/notificationSlice.js';
 
 const rootReducer = combineReducers({
     user: userReducer,
@@ -13,6 +14,7 @@ const rootReducer = combineReducers({
     language: languageReducer,
     currency: currencyReducer,
     tableCookie: tableCookieReducer,
+    notification: notificationReducer,
 });
 
 const persistConfig = {
