@@ -129,7 +129,7 @@ export const refreshSession = async (req, res, next) => {
         const token = jwt.sign(
             { id, staffId, isAdmin, isWaiter, isManager, isReception },
             process.env.JWT_SECRET,
-            { expiresIn: '10s' }
+            { expiresIn: '2m' }
         );
 
         const isProd = process.env.NODE_ENV === 'production';
