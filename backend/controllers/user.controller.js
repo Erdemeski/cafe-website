@@ -17,7 +17,15 @@ export const test = (req, res) => {
 
 export const signout = (req, res, next) => {
     try {
-        res.clearCookie('access_token').status(200).json('Staff has been signed out');
+        const isProd = process.env.NODE_ENV === 'production';
+        res
+            .clearCookie('access_token', {
+                httpOnly: true,
+                sameSite: 'lax',
+                secure: isProd,
+            })
+            .status(200)
+            .json('Staff has been signed out');
     } catch (error) {
         next(error);
     }
