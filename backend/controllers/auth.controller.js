@@ -76,14 +76,23 @@ export const signin = async (req, res, next) => {
                 isManager: validUser.isManager,
                 isReception: validUser.isReception
             }, 
-            process.env.JWT_SECRET
+            process.env.JWT_SECRET,
+            { expiresIn: '2m' } // 2 minutes
         );
 
         const { password: pass, ...rest } = validUser._doc;
 
-        res.status(200).cookie('access_token', token, {
-            httpOnly: true
-        }).json(rest);
+        const isProd = process.env.NODE_ENV === 'production';
+        const sessionDurationMs = 2* 60 * 1000; // 2 minutes
+        res
+            .status(200)
+            .cookie('access_token', token, {
+                httpOnly: true,
+                maxAge: sessionDurationMs,
+                sameSite: 'lax',
+                secure: isProd,
+            })
+            .json({ ...rest, sessionExpiresAt: Date.now() + sessionDurationMs });
     } catch (error) {
         next(error);
     }
@@ -107,6 +116,39 @@ function replaceTurkishChars(str) {
 
     return str.split('').map(char => turkishMap[char] || char).join('');
 }
+
+// Refresh session if user is active (requires a valid, unexpired token)
+export const refreshSession = async (req, res, next) => {
+    try {
+        // req.user is set by verifyToken middleware (decoded JWT)
+        const { id, staffId, isAdmin, isWaiter, isManager, isReception } = req.user || {};
+        if (!id) {
+            return next(errorHandler(401, 'Unauthorized - Please sign in'));
+        }
+
+        const token = jwt.sign(
+            { id, staffId, isAdmin, isWaiter, isManager, isReception },
+            process.env.JWT_SECRET,
+            { expiresIn: '2m' }
+        );
+
+        const isProd = process.env.NODE_ENV === 'production';
+        const sessionDurationMs = 2 * 60 * 1000;
+
+        res
+            .cookie('access_token', token, {
+                httpOnly: true,
+                maxAge: sessionDurationMs,
+                sameSite: 'lax',
+                secure: isProd,
+            })
+            .status(200)
+            .json({ sessionExpiresAt: Date.now() + sessionDurationMs });
+
+    } catch (error) {
+        next(error);
+    }
+};
 
 /* export const google = async (req, res, next) => {
     const { email, firstName, lastName, googlePhotoUrl } = req.body;
