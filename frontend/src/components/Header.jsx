@@ -10,7 +10,7 @@ import { toggleLanguage } from '../redux/page_Language/languageSlice';
 import { selectCurrency } from '../redux/currency/currencySlice';
 import en from "../assets/lang_Icons/en.png";
 import tr from "../assets/lang_Icons/tr.png";
-import { signoutSuccess } from '../redux/user/userSlice';
+import { signoutSuccess, sessionExpired } from '../redux/user/userSlice';
 import { HiOutlineExclamationCircle } from 'react-icons/hi'
 
 export default function Header() {
@@ -21,7 +21,7 @@ export default function Header() {
     const { language } = useSelector((state) => state.language);
     const { currency } = useSelector((state) => state.currency);
     const [isScrolled, setIsScrolled] = useState(false);
-    const { currentUser } = useSelector((state) => state.user);
+    const { currentUser, sessionExpiresAt } = useSelector((state) => state.user);
     const [showSignout, setShowSignout] = useState(false);
     const navigate = useNavigate();
 
@@ -32,6 +32,57 @@ export default function Header() {
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
+
+    // Auto signout when session expires (client-side timer)
+    useEffect(() => {
+        if (!sessionExpiresAt) return;
+        const now = Date.now();
+        const msLeft = sessionExpiresAt - now;
+        if (msLeft <= 0) {
+            dispatch(sessionExpired());
+            return;
+        }
+        const timer = setTimeout(() => {
+            dispatch(sessionExpired());
+        }, msLeft);
+        return () => clearTimeout(timer);
+    }, [sessionExpiresAt, dispatch]);
+
+    // Minimal activity-based keep-alive: refresh session on user activity
+    useEffect(() => {
+        if (!currentUser) return;
+        let cooldown = false;
+        const REFRESH_COOLDOWN_MS = 3000; // prevent spamming
+
+        const refresh = async () => {
+            if (cooldown) return;
+            cooldown = true;
+            try {
+                const res = await fetch('/api/auth/refresh', { method: 'POST' });
+                if (res.status === 401) {
+                    dispatch(sessionExpired());
+                    return;
+                }
+                const data = await res.json();
+                if (res.ok && data?.sessionExpiresAt) {
+                    // Update only the expiry timestamp in store
+                    dispatch({ type: 'user/signInSuccess', payload: { ...currentUser, sessionExpiresAt: data.sessionExpiresAt } });
+                }
+            } catch (_) {
+                // ignore network errors here
+            } finally {
+                setTimeout(() => { cooldown = false; }, REFRESH_COOLDOWN_MS);
+            }
+        };
+
+        const activityEvents = ['click', 'keydown', 'mousemove', 'scroll', 'visibilitychange'];
+        const handler = () => {
+            if (document.visibilityState === 'hidden') return;
+            refresh();
+        };
+        activityEvents.forEach(evt => window.addEventListener(evt, handler));
+        return () => activityEvents.forEach(evt => window.removeEventListener(evt, handler));
+    }, [currentUser, dispatch]);
 
     const handleSignout = async () => {
         try {
