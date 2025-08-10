@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, Badge, Button, Modal, TextInput, Select, Alert, Spinner, Textarea, Datepicker } from 'flowbite-react';
 import { HiClock, HiCheck, HiX, HiEye, HiRefresh, HiFilter, HiCalendar, HiBell, HiViewBoards } from 'react-icons/hi';
-import { MdRestaurant, MdPerson, MdAccessTime, MdOutlineTableBar } from 'react-icons/md';
+import { MdRestaurant, MdPerson, MdAccessTime, MdOutlineTableBar, MdDoneAll } from 'react-icons/md';
 import { BiDish } from 'react-icons/bi';
+import { FiAlertTriangle } from "react-icons/fi";
+import { CiNoWaitingSign } from "react-icons/ci";
+import { IoIosHourglass } from "react-icons/io";
+import { TbProgress } from "react-icons/tb";
 import { useNotification } from './NotificationProvider';
 import { useSelector } from 'react-redux';
 
@@ -46,7 +50,10 @@ export default function DashWaiterCalls() {
       const response = await fetch('/api/table/get-tables');
       const data = await response.json();
       if (response.ok) {
-        return data.tables || [];
+        return (data.tables || []).map((t) => ({
+          tableNumber: t.tableNumber,
+          sessionStatus: t.sessionStatus || { isActive: false, expiresAt: null, lastValidatedAt: null },
+        }));
       } else {
         console.error('Masalar yüklenemedi');
         return [];
@@ -67,23 +74,25 @@ export default function DashWaiterCalls() {
     allTables.forEach((table) => {
       tableMap.set(table.tableNumber, {
         tableNumber: table.tableNumber,
+        sessionStatus: table.sessionStatus || { isActive: false, expiresAt: null, lastValidatedAt: null },
         calls: [],
         pendingCount: 0,
         attendedCount: 0,
         cancelledCount: 0,
         totalCount: 0,
         lastCallTime: null,
+        hasPrevDayCall: false,
       });
     });
 
-    // Filter calls by today's date for summary tiles
+    // Filter calls by today's date for summary tiles using local timezone
     const today = new Date();
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+    const todayString = today.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
 
     const filteredCalls = (callsList || []).filter((call) => {
       const callDate = new Date(call.timestamp);
-      return callDate >= startOfDay && callDate < endOfDay;
+      const callDateString = callDate.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
+      return callDateString === todayString;
     });
 
     filteredCalls.forEach((call) => {
@@ -91,12 +100,14 @@ export default function DashWaiterCalls() {
       if (!tableMap.has(tableNumber)) {
         tableMap.set(tableNumber, {
           tableNumber,
+          sessionStatus: { isActive: false, expiresAt: null, lastValidatedAt: null },
           calls: [],
           pendingCount: 0,
           attendedCount: 0,
           cancelledCount: 0,
           totalCount: 0,
           lastCallTime: null,
+          hasPrevDayCall: false,
         });
       }
 
@@ -111,6 +122,35 @@ export default function DashWaiterCalls() {
       const callTime = new Date(call.timestamp);
       if (!tableData.lastCallTime || callTime > tableData.lastCallTime) {
         tableData.lastCallTime = callTime;
+      }
+    });
+
+    // Detect previous-day active calls per table
+    const previousOrOlderCalls = (callsList || []).filter((call) => {
+      const callDate = new Date(call.timestamp);
+      const callDateString = callDate.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
+      return callDateString !== todayString;
+    });
+    previousOrOlderCalls.forEach((call) => {
+      // Check for active calls (pending) from previous days
+      if (call.status === 'pending') {
+        const tn = call.tableNumber;
+        if (!tableMap.has(tn)) {
+          tableMap.set(tn, {
+            tableNumber: tn,
+            sessionStatus: { isActive: false, expiresAt: null, lastValidatedAt: null },
+            calls: [],
+            pendingCount: 0,
+            attendedCount: 0,
+            cancelledCount: 0,
+            totalCount: 0,
+            lastCallTime: null,
+            hasPrevDayCall: true,
+          });
+        } else {
+          const td = tableMap.get(tn);
+          td.hasPrevDayCall = true;
+        }
       }
     });
 
@@ -235,13 +275,15 @@ export default function DashWaiterCalls() {
     if (viewMode === 'byDate' && filterDate) {
       filtered = filtered.filter((call) => {
         const callDate = new Date(call.timestamp);
-        const callDateString = callDate.toISOString().split('T')[0];
+        // Use local timezone instead of UTC
+        const callDateString = callDate.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
         return callDateString === filterDate;
       });
     } else if (viewMode === 'byTable' && filterDate) {
       filtered = filtered.filter((call) => {
         const callDate = new Date(call.timestamp);
-        const callDateString = callDate.toISOString().split('T')[0];
+        // Use local timezone instead of UTC
+        const callDateString = callDate.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
         return callDateString === filterDate;
       });
     }
@@ -379,47 +421,47 @@ export default function DashWaiterCalls() {
       <Card
         className="mb-4"
         theme={{
-          root: { children: 'flex h-full flex-col justify-center gap-1 p-2 md:p-3' },
+          root: {
+            children: 'flex h-full flex-col justify-center gap-1 p-2 md:p-3',
+            base: 'flex rounded-lg border border-gray-200 bg-white/30 shadow-lg dark:border-gray-700 dark:bg-[rgb(32,38,43)]/70'
+          }
         }}
       >
-        <div className="border-b border-gray-200 dark:border-gray-700">
-          <ul className="flex flex-wrap -mb-px text-sm font-medium text-center">
-            <li className="mr-1">
+        <div className="border-b border-gray-300 dark:border-gray-600">
+        <ul className="flex flex-wrap -mb-px text-xs sm:text-sm font-semibold sm:font-medium text-center">
+        <li className="mr-1">
               <button
                 onClick={() => handleViewModeChange('byTable')}
-                className={`inline-flex items-center justify-center p-2 border-b-2 rounded-t-lg ${
-                  viewMode === 'byTable'
-                    ? 'text-blue-600 border-blue-600 active dark:text-blue-500 dark:border-blue-500'
-                    : 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300'
-                }`}
+                className={`inline-flex items-center justify-center p-2 border-b-2 rounded-t-lg ${viewMode === 'byTable'
+                  ? 'text-orange-500 border-orange-500 active dark:text-orange-400 dark:border-orange-400'
+                  : 'border-transparent hover:text-gray-900 hover:border-gray-400 dark:hover:text-gray-200'
+                  }`}
               >
-                <MdRestaurant className="mr-2 h-4 w-4" />
+                <MdRestaurant className="mr-1 h-4 w-4" />
                 Masalara Göre
               </button>
             </li>
             <li className="mr-1">
               <button
                 onClick={() => handleViewModeChange('byDate')}
-                className={`inline-flex items-center justify-center p-2 border-b-2 rounded-t-lg ${
-                  viewMode === 'byDate'
-                    ? 'text-blue-600 border-blue-600 active dark:text-blue-500 dark:border-blue-500'
-                    : 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300'
-                }`}
+                className={`inline-flex items-center justify-center p-2 border-b-2 rounded-t-lg ${viewMode === 'byDate'
+                  ? 'text-orange-500 border-orange-500 active dark:text-orange-400 dark:border-orange-400'
+                  : 'border-transparent hover:text-gray-900 hover:border-gray-400 dark:hover:text-gray-200'
+                  }`}
               >
-                <HiCalendar className="mr-2 h-4 w-4" />
+                <HiCalendar className="mr-1 h-4 w-4" />
                 Güne Göre
               </button>
             </li>
             <li className="mr-1">
               <button
                 onClick={() => handleViewModeChange('all')}
-                className={`inline-flex items-center justify-center p-2 border-b-2 rounded-t-lg ${
-                  viewMode === 'all'
-                    ? 'text-blue-600 border-blue-600 active dark:text-blue-500 dark:border-blue-500'
-                    : 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300'
-                }`}
+                className={`inline-flex items-center justify-center p-2 border-b-2 rounded-t-lg ${viewMode === 'all'
+                  ? 'text-orange-500 border-orange-500 active dark:text-orange-400 dark:border-orange-400'
+                  : 'border-transparent hover:text-gray-900 hover:border-gray-400 dark:hover:text-gray-200'
+                  }`}
               >
-                <HiViewBoards className="mr-2 h-4 w-4" />
+                <HiViewBoards className="mr-1 h-4 w-4" />
                 Bütün Çağrılar
               </button>
             </li>
@@ -540,7 +582,14 @@ export default function DashWaiterCalls() {
       ) : viewMode === 'all' || viewMode === 'byDate' ? (
         // All Calls View or Date View
         sortedWaiterCalls.length === 0 ? (
-          <Card>
+          <Card
+            theme={{
+              root: {
+                children: 'flex flex-col justify-start gap-4 p-6',
+                base: 'flex rounded-lg border border-gray-100 bg-white/50 shadow-lg dark:border-[rgb(22,26,29)]/80 dark:bg-[rgb(22,26,29)]/80'
+              }
+            }}
+          >
             <div className="text-center py-8">
               <BiDish className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Garson çağrısı bulunamadı</h3>
@@ -559,16 +608,19 @@ export default function DashWaiterCalls() {
               return (
                 <Card
                   key={call._id}
-                  className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
-                    call.status === 'pending' ? 'ring-2 ring-yellow-200' : ''
-                  } ${
-                    urgencyLevel === 'urgent' && call.status === 'pending' ? 'ring-2 ring-orange-400 bg-orange-50' : ''
-                  } ${
-                    urgencyLevel === 'critical' && call.status === 'pending' ? 'ring-2 ring-red-400 bg-red-50' : ''
-                  }`}
+                  className={`cursor-pointer transition-all duration-200 hover:shadow-lg border rounded-lg ${call.status === 'pending' ? 'ring-2 ring-yellow-200' : ''
+                    } ${urgencyLevel === 'urgent' && call.status === 'pending' ? 'ring-2 ring-orange-400 bg-orange-50 dark:bg-orange-900/20' : ''
+                    } ${urgencyLevel === 'critical' && call.status === 'pending' ? 'ring-2 ring-red-400 bg-red-50 dark:bg-red-900/30' : ''
+                    }`}
                   onClick={() => {
                     setSelectedCall(call);
                     setShowCallModal(true);
+                  }}
+                  theme={{
+                    root: {
+                      children: 'flex h-full flex-col justify-start gap-4 p-4',
+                      base: 'flex rounded-lg border border-gray-100 bg-white/70 shadow-lg dark:border-gray-700 dark:bg-[rgb(32,38,43)]/70'
+                    }
                   }}
                 >
                   <div className='flex justify-between items-start mb-3'>
@@ -594,10 +646,10 @@ export default function DashWaiterCalls() {
                           urgencyLevel === 'critical' && call.status === 'pending'
                             ? 'text-red-600 font-semibold'
                             : urgencyLevel === 'urgent' && call.status === 'pending'
-                            ? 'text-orange-600 font-semibold'
-                            : call.status === 'pending'
-                            ? 'text-yellow-600 font-semibold'
-                            : ''
+                              ? 'text-orange-600 font-semibold'
+                              : call.status === 'pending'
+                                ? 'text-yellow-600 font-semibold'
+                                : ''
                         }
                       >
                         {getTimeElapsed(call.timestamp)}
@@ -618,6 +670,13 @@ export default function DashWaiterCalls() {
                       </div>
                     )}
                   </div>
+
+                  {call.sessionId && (
+                    <div className='flex justify-between text-sm'>
+                      <span className='text-gray-600 dark:text-gray-400'>Kullanıcı ID:</span>
+                      <span className='font-mono text-xs break-all'>{call.sessionId}</span>
+                    </div>
+                  )}
 
                   {call.notes && (
                     <div className='mt-3 pt-3 border-t border-gray-200'>
@@ -656,7 +715,14 @@ export default function DashWaiterCalls() {
         <div>
           {!selectedTable ? (
             tables.length === 0 ? (
-              <Card>
+              <Card
+                theme={{
+                  root: {
+                    children: 'flex flex-col justify-start gap-4 p-6',
+                    base: 'flex rounded-lg border border-gray-100 bg-white/50 shadow-lg dark:border-[rgb(22,26,29)]/80 dark:bg-[rgb(22,26,29)]/80'
+                  }
+                }}
+              >
                 <div className="text-center py-8">
                   <BiDish className="mx-auto h-12 w-12 text-gray-400" />
                   <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Masa bulunamadı</h3>
@@ -664,7 +730,7 @@ export default function DashWaiterCalls() {
                 </div>
               </Card>
             ) : (
-              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+              <div className='grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4'>
                 {tables.map((table) => {
                   const tableCalls = getTableCalls(table.tableNumber);
                   const hasUrgentCalls = tableCalls.some(
@@ -674,16 +740,17 @@ export default function DashWaiterCalls() {
                   return (
                     <Card
                       key={table.tableNumber}
-                      className={`md:max-w-xsm min-w-xs flex flex-col justify-between cursor-pointer transition-all duration-200 hover:shadow-lg ${
-                        table.totalCount === 0
-                          ? 'ring-1 ring-gray-200 bg-gray-50'
-                          : hasUrgentCalls
-                          ? 'ring-2 ring-red-400 bg-red-50'
-                          : table.pendingCount > 0
-                          ? 'ring-2 ring-yellow-200'
-                          : ''
-                      }`}
+                      className={`md:max-w-xsm min-w-xs flex flex-col justify-between cursor-pointer transition-all duration-200 hover:shadow-lg border rounded-lg
+                        ${hasUrgentCalls ? 'ring-2 ring-red-400 bg-red-50 dark:bg-red-900/20' :
+                          table.pendingCount > 0 ? 'ring-2 ring-yellow-200' : ''
+                        }`}
                       onClick={() => setSelectedTable(table.tableNumber)}
+                      theme={{
+                        root: {
+                          children: 'flex h-full flex-col justify-start gap-1 p-4',
+                          base: 'flex rounded-lg border border-gray-100 bg-white/70 shadow-lg dark:border-gray-700 dark:bg-[rgb(22,26,29)]/80'
+                        }
+                      }}
                     >
                       <div className='flex justify-between items-start mb-3'>
                         <div className='flex flex-col items-start gap-2'>
@@ -696,23 +763,69 @@ export default function DashWaiterCalls() {
                             <p className='text-sm text-gray-600 dark:text-gray-400'>
                               {table.totalCount > 0 ? `Bugün ${table.totalCount} çağrı` : 'Bugün çağrı yok'}
                             </p>
+                            <div className='mt-1'>
+                              {table.sessionStatus?.isActive ? (
+                                <Badge color="success" size="sm">
+                                  <div className='flex items-center gap-1'>
+                                    <div className='w-2 h-2 rounded-full animate-pulse bg-green-500'></div>
+                                    <span className='text-xs font-semibold'>Oturum açık</span>
+                                  </div>
+                                </Badge>
+                              ) : (
+                                <Badge color="gray" size="sm">
+                                  <div className='flex items-center gap-1'>
+                                    <div className='w-2 h-2 rounded-full animate-pulse bg-gray-500'></div>
+                                    <span className='text-xs font-semibold'>Oturum kapalı</span>
+                                  </div>
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        <div className='text-right'>
+                        <div className='text-right flex flex-col gap-1'>
+                          {/* Urgency indicator */}
+                          {table.totalCount > 0 && hasUrgentCalls && (
+                            <Badge color="failure">
+                              <div className='flex items-center gap-1'>
+                                <FiAlertTriangle className="h-4 w-4 animate-pulse" />
+                                <span className='text-xs font-semibold'>Kritik Çağrılar!</span>
+                              </div>
+                            </Badge>
+                          )}
+
+                          {/* Previous day active calls warning */}
+                          {table.hasPrevDayCall && (
+                            <Badge color="warning">
+                              <div className='flex items-center gap-1'>
+                                <HiClock className="h-4 w-4 animate-pulse" />
+                                <span className='text-xs font-semibold'>Eski çağrılar var</span>
+                              </div>
+                            </Badge>
+                          )}
+
                           {table.totalCount === 0 ? (
-                            <Badge color="gray" className="mb-1">
-                              Boş
+                            <Badge color="danger">
+                              <div className='flex items-center gap-1'>
+                                <CiNoWaitingSign className="h-4 w-4" />
+                                <span className='text-xs font-semibold'>Bugün çağrı yok</span>
+                              </div>
                             </Badge>
                           ) : (
                             <>
                               {table.pendingCount > 0 && (
                                 <Badge color="warning" className="mb-1">
-                                  {table.pendingCount} Bekliyor
+                                  <div className='flex items-center gap-1'>
+                                    <IoIosHourglass className="h-4 w-4 animate-pulse" />
+                                    <span className='text-xs font-semibold'>{table.pendingCount} Bekliyor</span>
+                                  </div>
                                 </Badge>
                               )}
                               {table.attendedCount > 0 && (
                                 <Badge color="success" className="mb-1">
-                                  {table.attendedCount} Yanıtlandı
+                                  <div className='flex items-center gap-1'>
+                                    <MdDoneAll className="h-4 w-4" />
+                                    <span className='text-xs font-semibold'>{table.attendedCount} Yanıtlandı</span>
+                                  </div>
                                 </Badge>
                               )}
                             </>
@@ -731,21 +844,11 @@ export default function DashWaiterCalls() {
                             </div>
                           </>
                         ) : (
-                          <div className='text-center py-2'>
+                          <div className='text-center'>
                             <p className='text-sm text-gray-500 dark:text-gray-400'>Bugün henüz çağrı yok</p>
                           </div>
                         )}
                       </div>
-
-                      {/* Urgency indicator */}
-                      {table.totalCount > 0 && hasUrgentCalls && (
-                        <div className='mt-3 pt-3 border-t border-red-200'>
-                          <div className='flex items-center text-red-600'>
-                            <HiClock className="mr-1 h-4 w-4 animate-pulse" />
-                            <span className='text-sm font-semibold'>Kritik Çağrılar!</span>
-                          </div>
-                        </div>
-                      )}
                     </Card>
                   );
                 })}
@@ -761,7 +864,14 @@ export default function DashWaiterCalls() {
               </div>
 
               {getTableCalls(selectedTable).length === 0 ? (
-                <Card>
+                <Card
+                  theme={{
+                    root: {
+                      children: 'flex flex-col justify-start gap-4 p-6',
+                      base: 'flex rounded-lg border border-gray-100 bg-white/50 shadow-lg dark:border-[rgb(22,26,29)]/80 dark:bg-[rgb(22,26,29)]/80'
+                    }
+                  }}
+                >
                   <div className='text-center py-8'>
                     <BiDish className='mx-auto h-12 w-12 text-gray-400' />
                     <h3 className='mt-2 text-sm font-medium text-gray-900 dark:text-white'>Çağrı bulunamadı</h3>
@@ -777,18 +887,21 @@ export default function DashWaiterCalls() {
                     return (
                       <Card
                         key={call._id}
-                        className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
-                          call.status === 'pending' ? 'ring-2 ring-yellow-200' : ''
-                        } ${
-                          urgencyLevel === 'urgent' && call.status === 'pending'
+                        className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${call.status === 'pending' ? 'ring-2 ring-yellow-200' : ''
+                          } ${urgencyLevel === 'urgent' && call.status === 'pending'
                             ? 'ring-2 ring-orange-400 bg-orange-50'
                             : ''
-                        } ${
-                          urgencyLevel === 'critical' && call.status === 'pending' ? 'ring-2 ring-red-400 bg-red-50' : ''
-                        }`}
+                          } ${urgencyLevel === 'critical' && call.status === 'pending' ? 'ring-2 ring-red-400 bg-red-50' : ''
+                          }`}
                         onClick={() => {
                           setSelectedCall(call);
                           setShowCallModal(true);
+                        }}
+                        theme={{
+                          root: {
+                            children: 'flex h-full flex-col justify-start gap-4 p-4',
+                            base: 'flex rounded-lg border border-gray-100 bg-white/70 shadow-lg dark:border-gray-700 dark:bg-[rgb(32,38,43)]/70'
+                          }
                         }}
                       >
                         <div className='flex justify-between items-start mb-3'>
@@ -811,10 +924,10 @@ export default function DashWaiterCalls() {
                                 urgencyLevel === 'critical' && call.status === 'pending'
                                   ? 'text-red-600 font-semibold'
                                   : urgencyLevel === 'urgent' && call.status === 'pending'
-                                  ? 'text-orange-600 font-semibold'
-                                  : call.status === 'pending'
-                                  ? 'text-yellow-600 font-semibold'
-                                  : ''
+                                    ? 'text-orange-600 font-semibold'
+                                    : call.status === 'pending'
+                                      ? 'text-yellow-600 font-semibold'
+                                      : ''
                               }
                             >
                               {getTimeElapsed(call.timestamp)}
@@ -833,6 +946,12 @@ export default function DashWaiterCalls() {
                             </div>
                           )}
                         </div>
+                        {call.sessionId && (
+                          <div className='flex justify-between text-sm'>
+                            <span className='text-gray-600 dark:text-gray-400'>Kullanıcı ID:</span>
+                            <span className='font-mono text-xs break-all'>{call.sessionId}</span>
+                          </div>
+                        )}
                         {call.notes && (
                           <div className='mt-3 pt-3 border-t border-gray-200'>
                             <p className='text-sm text-gray-600 dark:text-gray-400'>
@@ -889,7 +1008,13 @@ export default function DashWaiterCalls() {
                   <p className='text-sm text-gray-600 dark:text-gray-400'>Geçen Süre</p>
                   <p className='font-semibold dark:text-white'>{getTimeElapsed(selectedCall.timestamp)}</p>
                 </div>
-              </div>
+                {/*                 {selectedCall.sessionId && (
+                  <div className='text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg'>
+                    <p className='text-sm text-gray-600 dark:text-gray-400'>Kullanıcı ID</p>
+                    <p className='font-semibold dark:text-white break-all font-mono text-xs'>{selectedCall.sessionId}</p>
+                  </div>
+                )}
+ */}              </div>
 
               {/* Notes */}
               {selectedCall.notes && (

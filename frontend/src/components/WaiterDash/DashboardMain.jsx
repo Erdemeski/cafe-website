@@ -79,15 +79,20 @@ export default function DashboardMain() {
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        // Filter orders by date
+        // Filter orders by date using local timezone
+        const todayString = today.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
+        const monthStartString = monthStart.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
+
         const ordersToday = ordersList.filter(order => {
           const orderDate = new Date(order.createdAt);
-          return orderDate >= today;
+          const orderDateString = orderDate.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
+          return orderDateString === todayString;
         });
 
         const ordersThisMonth = ordersList.filter(order => {
           const orderDate = new Date(order.createdAt);
-          return orderDate >= monthStart;
+          const orderDateString = orderDate.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
+          return orderDateString >= monthStartString;
         });
 
         // Calculate stats
@@ -347,7 +352,7 @@ export default function DashboardMain() {
                 </div>
               </div>
             </div>
-            <div className='bg-blue-600 rounded-full p-2'>
+            <div className='bg-blue-600 rounded-full p-2 flex items-center justify-center'>
               <MdRestaurant className='h-8 w-8 text-white' />
             </div>
           </div>
@@ -876,21 +881,21 @@ export default function DashboardMain() {
             <HiClock className='h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5' />
             <div>
               <p className='font-medium text-gray-800 dark:text-gray-200'>Bekleyen Siparişler</p>
-              <p className='text-gray-600 dark:text-gray-400'>Sarı çerçeveli kartlar acil işlem gerektirir</p>
+              <p className='text-gray-600 dark:text-gray-400'>Sarı çerçeveli kartlar bekleyen siparişlerdir</p>
             </div>
           </div>
           <div className='flex items-start gap-2'>
             <HiBell className='h-5 w-5 text-red-600 mt-0.5' />
             <div>
               <p className='font-medium text-gray-800 dark:text-gray-200'>Acil Çağrılar</p>
-              <p className='text-gray-600 dark:text-gray-400'>Kırmızı arka planlı çağrılar öncelikli</p>
+              <p className='text-gray-600 dark:text-gray-400'>Kırmızı arka planlı kartlar acil işlem gerektirir</p>
             </div>
           </div>
           <div className='flex items-start gap-2'>
             <HiRefresh className='h-5 w-5 text-blue-600 mt-0.5' />
             <div>
               <p className='font-medium text-gray-800 dark:text-gray-200'>Otomatik Yenileme</p>
-              <p className='text-gray-600 dark:text-gray-400'>Veriler her 30 saniyede bir güncellenir</p>
+              <p className='text-gray-600 dark:text-gray-400'>Veriler her 10 saniyede bir güncellenir</p>
             </div>
           </div>
         </div>

@@ -10,7 +10,7 @@ const generateOrderNumber = () => {
 
 // POST /api/order
 export const createOrder = async (req, res) => {
-  const { tableNumber, items, cookieNumber, totalPrice, notes, customerName, expiresAt } = req.body;
+  const { tableNumber, items, cookieNumber, totalPrice, notes, customerName, expiresAt, sessionId } = req.body;
   
   // Validasyon
   if (!tableNumber || !items || !Array.isArray(items) || items.length === 0 || !cookieNumber || !totalPrice) {
@@ -46,6 +46,7 @@ export const createOrder = async (req, res) => {
       tableNumber, 
       items: mappedItems, 
       cookieNumber, 
+      sessionId: sessionId || undefined,
       totalPrice: calculatedTotal,
       orderNumber,
       notes: notes || '',

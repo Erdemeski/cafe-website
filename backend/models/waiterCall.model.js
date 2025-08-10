@@ -11,6 +11,11 @@ const waiterCallSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  sessionId: {
+    type: String,
+    required: false,
+    index: true
+  },
   timestamp: {
     type: Date,
     default: Date.now,

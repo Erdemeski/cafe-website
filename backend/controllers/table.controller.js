@@ -1,11 +1,12 @@
 import Table from "../models/table.model.js";
 import WaiterCall from "../models/waiterCall.model.js";
-import { generateCookieNumber, validateCookieWithExpiry } from "../utils/cookieGenerator.js";
+import TableSession from "../models/tableSession.model.js";
+import { generateCookieNumber, validateCookieWithExpiry, validateCookieNumber } from "../utils/cookieGenerator.js";
 import bcrypt from "bcryptjs";
 
 // POST /api/table/verify
 export const verifyTableCode = async (req, res) => {
-  const { tableNumber, securityCode } = req.body;
+  const { tableNumber, securityCode, previousCookieNumber } = req.body;
   if (!tableNumber || !securityCode) {
     return res.status(400).json({ message: "Eksik parametre." });
   }
@@ -18,9 +19,28 @@ export const verifyTableCode = async (req, res) => {
       return res.status(401).json({ message: "Güvenlik kodu yanlış." });
     }
 
-    // Cookie number oluştur
-    const cookieNumber = generateCookieNumber(tableNumber);
+    // Cookie number: geçerli bir önceki cookie verildiyse onu kullan, değilse yeni üret
+    const cookieNumber = (typeof previousCookieNumber === 'string' && validateCookieNumber(previousCookieNumber))
+      ? previousCookieNumber
+      : generateCookieNumber(tableNumber);
     const expiresAt = Date.now() + 2 * 60 * 1000; // 2 dakika
+
+    // Oturum durumunu güncelle/oluştur
+    try {
+      await TableSession.findOneAndUpdate(
+        { tableNumber },
+        {
+          tableNumber,
+          cookieNumber,
+          lastValidatedAt: new Date(),
+          expiresAt: new Date(expiresAt),
+          isActive: true,
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+    } catch (e) {
+      console.warn('TableSession upsert failed on verify:', e?.message || e);
+    }
 
     return res.json({
       success: true,
@@ -82,6 +102,20 @@ export const validateTableCookie = async (req, res) => {
       return res.status(404).json({ message: "Masa bulunamadı." });
     }
 
+    // Aktif oturum durumunu güncelle
+    const expDate = expiresAt ? new Date(expiresAt) : null;
+    await TableSession.findOneAndUpdate(
+      { tableNumber },
+      {
+        tableNumber,
+        cookieNumber,
+        lastValidatedAt: new Date(),
+        expiresAt: expDate,
+        isActive: expDate ? Date.now() < expDate.getTime() : true,
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
     return res.json({
       success: true,
       message: "Oturum geçerli.",
@@ -94,7 +128,7 @@ export const validateTableCookie = async (req, res) => {
 
 // POST /api/table/call-waiter
 export const callWaiter = async (req, res) => {
-  const { tableNumber, cookieNumber, expiresAt, notes } = req.body;
+  const { tableNumber, cookieNumber, expiresAt, notes, sessionId } = req.body;
 
   if (!tableNumber || !cookieNumber) {
     return res.status(400).json({ message: "Eksik parametre." });
@@ -119,6 +153,7 @@ export const callWaiter = async (req, res) => {
     const waiterCall = await WaiterCall.create({
       tableNumber,
       cookieNumber,
+      sessionId: sessionId || undefined,
       timestamp: new Date(),
       status: 'pending',
       notes: notes || ''
@@ -207,10 +242,73 @@ export const updateWaiterCallStatus = async (req, res) => {
 export const getTables = async (req, res) => {
   try {
     const tables = await Table.find().sort({ tableNumber: 1 });
-    return res.json({ success: true, tables });
+
+    // Join session status
+    const tableNumbers = tables.map((t) => t.tableNumber);
+    const sessions = await TableSession.find({ tableNumber: { $in: tableNumbers } });
+    const tnToSession = new Map(sessions.map((s) => [s.tableNumber, s]));
+
+    const enriched = tables.map((t) => {
+      const s = tnToSession.get(t.tableNumber);
+      let sessionStatus = {
+        isActive: false,
+        expiresAt: null,
+        lastValidatedAt: null,
+      };
+      if (s) {
+        const expMs = s.expiresAt ? new Date(s.expiresAt).getTime() : null;
+        const active = expMs ? Date.now() < expMs : !!s.isActive;
+        sessionStatus = {
+          isActive: active,
+          expiresAt: s.expiresAt,
+          lastValidatedAt: s.lastValidatedAt,
+        };
+      }
+      const obj = t.toObject ? t.toObject() : {
+        _id: t._id,
+        tableNumber: t.tableNumber,
+        securityCode: t.securityCode,
+        hashedTableNumber: t.hashedTableNumber,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      };
+      return { ...obj, sessionStatus };
+    });
+
+    return res.json({ success: true, tables: enriched });
   } catch (err) {
     console.error('Masalar getirme hatası:', err);
     return res.status(500).json({ message: "Masalar getirilemedi." });
+  }
+};
+
+// GET /api/table/session-status - aktif oturumları getir
+export const getTableSessions = async (req, res) => {
+  try {
+    const tables = await Table.find().sort({ tableNumber: 1 });
+    const tableNumbers = tables.map((t) => t.tableNumber);
+    const sessions = await TableSession.find({ tableNumber: { $in: tableNumbers } });
+    const tnToSession = new Map(sessions.map((s) => [s.tableNumber, s]));
+
+    const result = tables.map((t) => {
+      const s = tnToSession.get(t.tableNumber);
+      let sessionStatus = { isActive: false, expiresAt: null, lastValidatedAt: null };
+      if (s) {
+        const expMs = s.expiresAt ? new Date(s.expiresAt).getTime() : null;
+        const active = expMs ? Date.now() < expMs : !!s.isActive;
+        sessionStatus = {
+          isActive: active,
+          expiresAt: s.expiresAt,
+          lastValidatedAt: s.lastValidatedAt,
+        };
+      }
+      return { tableNumber: t.tableNumber, sessionStatus };
+    });
+
+    return res.json({ success: true, tables: result });
+  } catch (err) {
+    console.error('Oturumlar getirme hatası:', err);
+    return res.status(500).json({ message: "Oturumlar getirilemedi." });
   }
 };
 

@@ -1,6 +1,6 @@
 import express from "express";
-import { verifyTableCode, checkTable, validateTableCookie, callWaiter, getWaiterCalls, updateWaiterCallStatus, getTables, createTable, updateTable, deleteTable } from "../controllers/table.controller.js";
-import { verifyToken, verifyAdmin } from '../utils/verifyUser.js';
+import { verifyTableCode, checkTable, validateTableCookie, callWaiter, getWaiterCalls, updateWaiterCallStatus, getTables, createTable, updateTable, deleteTable, getTableSessions } from "../controllers/table.controller.js";
+import { verifyToken, verifyAdmin, verifyStaff } from '../utils/verifyUser.js';
 
 const router = express.Router();
 
@@ -16,8 +16,9 @@ router.get("/waiter-calls", getWaiterCalls);
 // PATCH /api/table/waiter-calls/:id/status - Garson çağrısı durumunu güncelle
 router.patch("/waiter-calls/:id/status", updateWaiterCallStatus);
 
-// Protected routes (Admin/Manager only)
-router.get("/get-tables", verifyToken, verifyAdmin, getTables);
+// Protected routes (Staff can read tables/session status)
+router.get("/get-tables", verifyToken, verifyStaff, getTables);
+router.get("/session-status", verifyToken, verifyStaff, getTableSessions);
 router.post("/create-table", verifyToken, verifyAdmin, createTable);
 router.put("/update-table/:id", verifyToken, verifyAdmin, updateTable);
 router.delete("/delete-table/:id", verifyToken, verifyAdmin, deleteTable);

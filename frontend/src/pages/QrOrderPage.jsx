@@ -261,7 +261,8 @@ const QrOrderPage = () => {
                         body: JSON.stringify({
                             tableNumber,
                             cookieNumber: tableCookie.cookieNumber,
-                            expiresAt: tableCookie.expiresAt
+                            expiresAt: tableCookie.expiresAt,
+                            sessionId: tableCookie.sessionId
                         })
                     });
                     const data = await response.json();
@@ -288,7 +289,15 @@ const QrOrderPage = () => {
             const response = await fetch("/api/table/verify", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ tableNumber, securityCode })
+                body: JSON.stringify({
+                    tableNumber,
+                    securityCode,
+                    // Oturum süresi dolmuşsa önceki cookie'yi koru
+                    previousCookieNumber:
+                        tableCookie?.tableNumber === tableNumber && !isCookieActive
+                            ? tableCookie.cookieNumber
+                            : null,
+                })
             });
             const data = await response.json();
             if (response.ok && data.success) {
@@ -498,6 +507,7 @@ const QrOrderPage = () => {
                     tableNumber,
                     cookieNumber: tableCookie.cookieNumber,
                     expiresAt: tableCookie.expiresAt,
+                    sessionId: tableCookie.sessionId,
                     notes: waiterNotes.trim()
                 })
             });
@@ -536,10 +546,11 @@ const QrOrderPage = () => {
                 const response = await fetch("/api/order/give-order", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
+                        body: JSON.stringify({
                         cookieNumber: tableCookie.cookieNumber,
                         tableNumber,
                         expiresAt: tableCookie.expiresAt,
+                            sessionId: tableCookie.sessionId,
                         items: cart.map(({ _id, ProductName, Price, qty }) => ({ id: _id, ProductName, Price, qty })),
                         totalPrice: cart.reduce((sum, item) => sum + item.Price * item.qty, 0),
                         customerName: customerName.trim(),

@@ -9,8 +9,13 @@ const orderSchema = new mongoose.Schema({
   cookieNumber: {
     type: String,
     required: true,
-    unique: true,
+    // unique: true, // Bir oturumda birden fazla siparişe izin ver
     index: true
+  },
+  sessionId: {
+    type: String,
+    required: false,
+    index: true,
   },
   totalPrice: {
     type: Number,

@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, Badge, Button, Modal, TextInput, Select, Alert, Spinner, Datepicker } from 'flowbite-react';
-import { HiClock, HiCheck, HiX, HiEye, HiRefresh, HiFilter, HiCalendar, HiViewBoards } from 'react-icons/hi';
-import { MdRestaurant, MdLocalShipping, MdDone, MdCancel, MdOutlineTableBar } from 'react-icons/md';
+import { HiClock, HiCheck, HiX, HiEye, HiRefresh, HiFilter, HiCalendar, HiViewBoards, HiUser } from 'react-icons/hi';
+import { MdRestaurant, MdLocalShipping, MdDone, MdCancel, MdOutlineTableBar, MdDoneAll } from 'react-icons/md';
+import { FiAlertTriangle } from "react-icons/fi";
+import { CiNoWaitingSign } from "react-icons/ci";
+import { IoIosHourglass } from "react-icons/io";
+import { TbProgress } from "react-icons/tb";
 import { useNotification } from './NotificationProvider';
 
 export default function DashOrders() {
@@ -82,7 +86,11 @@ export default function DashOrders() {
       const data = await response.json();
 
       if (response.ok) {
-        return data.tables || [];
+        // tables may include sessionStatus from backend
+        return (data.tables || []).map((t) => ({
+          tableNumber: t.tableNumber,
+          sessionStatus: t.sessionStatus || { isActive: false, expiresAt: null, lastValidatedAt: null },
+        }));
       } else {
         console.error('Masalar yüklenemedi');
         return [];
@@ -104,6 +112,7 @@ export default function DashOrders() {
     allTables.forEach(table => {
       tableMap.set(table.tableNumber, {
         tableNumber: table.tableNumber,
+        sessionStatus: table.sessionStatus || { isActive: false, expiresAt: null, lastValidatedAt: null },
         orders: [],
         pendingCount: 0,
         preparingCount: 0,
@@ -111,18 +120,19 @@ export default function DashOrders() {
         servedCount: 0,
         cancelledCount: 0,
         totalCount: 0,
-        lastOrderTime: null
+        lastOrderTime: null,
+        hasPrevDayOrder: false,
       });
     });
 
-    // Filter orders by today's date
+    // Filter orders by today's date using local timezone
     const today = new Date();
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+    const todayString = today.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
 
     const filteredOrders = ordersList.filter(order => {
       const orderDate = new Date(order.createdAt);
-      return orderDate >= startOfDay && orderDate < endOfDay;
+      const orderDateString = orderDate.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
+      return orderDateString === todayString;
     });
 
     // Add order data to tables that have orders
@@ -131,6 +141,7 @@ export default function DashOrders() {
       if (!tableMap.has(tableNumber)) {
         tableMap.set(tableNumber, {
           tableNumber,
+          sessionStatus: { isActive: false, expiresAt: null, lastValidatedAt: null },
           orders: [],
           pendingCount: 0,
           preparingCount: 0,
@@ -138,7 +149,8 @@ export default function DashOrders() {
           servedCount: 0,
           cancelledCount: 0,
           totalCount: 0,
-          lastOrderTime: null
+          lastOrderTime: null,
+          hasPrevDayOrder: false,
         });
       }
 
@@ -155,6 +167,37 @@ export default function DashOrders() {
       const orderTime = new Date(order.createdAt);
       if (!tableData.lastOrderTime || orderTime > tableData.lastOrderTime) {
         tableData.lastOrderTime = orderTime;
+      }
+    });
+
+    // Detect previous-day active orders per table
+    const previousOrOlderOrders = (ordersList || []).filter(order => {
+      const orderDate = new Date(order.createdAt);
+      const orderDateString = orderDate.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
+      return orderDateString !== todayString;
+    });
+    previousOrOlderOrders.forEach(order => {
+      // Check for active orders (pending, preparing, ready) from previous days
+      if (order.status === 'pending' || order.status === 'preparing' || order.status === 'ready') {
+        const tn = order.tableNumber;
+        if (!tableMap.has(tn)) {
+          tableMap.set(tn, {
+            tableNumber: tn,
+            sessionStatus: { isActive: false, expiresAt: null, lastValidatedAt: null },
+            orders: [],
+            pendingCount: 0,
+            preparingCount: 0,
+            readyCount: 0,
+            servedCount: 0,
+            cancelledCount: 0,
+            totalCount: 0,
+            lastOrderTime: null,
+            hasPrevDayOrder: true,
+          });
+        } else {
+          const td = tableMap.get(tn);
+          td.hasPrevDayOrder = true;
+        }
       }
     });
 
@@ -257,14 +300,16 @@ export default function DashOrders() {
       // In byDate mode, filter by selected date
       filtered = filtered.filter(order => {
         const orderDate = new Date(order.createdAt);
-        const orderDateString = orderDate.toISOString().split('T')[0];
+        // Use local timezone instead of UTC
+        const orderDateString = orderDate.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
         return orderDateString === filterDate;
       });
     } else if (viewMode === 'byTable' && filterDate) {
       // In byTable mode, filter by selected date (defaults to today)
       filtered = filtered.filter(order => {
         const orderDate = new Date(order.createdAt);
-        const orderDateString = orderDate.toISOString().split('T')[0];
+        // Use local timezone instead of UTC
+        const orderDateString = orderDate.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
         return orderDateString === filterDate;
       });
     }
@@ -356,25 +401,30 @@ export default function DashOrders() {
     return (
       <Card
         key={order._id}
-        className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${order.status === 'pending' ? 'ring-2 ring-yellow-200' : ''
-          } ${urgencyLevel === 'urgent' && order.status === 'pending' ? 'ring-2 ring-orange-400 bg-orange-50' : ''
-          } ${urgencyLevel === 'critical' && order.status === 'pending' ? 'ring-2 ring-red-400 bg-red-50' : ''
+        className={`cursor-pointer transition-all duration-200 hover:shadow-lg border rounded-lg ${order.status === 'pending' ? 'ring-2 ring-yellow-200' : ''
+          } ${urgencyLevel === 'urgent' && order.status === 'pending' ? 'ring-2 ring-orange-400 bg-orange-50 dark:bg-orange-900/20' : ''
+          } ${urgencyLevel === 'critical' && order.status === 'pending' ? 'ring-2 ring-red-400 bg-red-50 dark:bg-red-900/30' : ''
           }`}
         onClick={() => {
           setSelectedOrder(order);
           setShowOrderModal(true);
         }}
+        theme={{
+          root: {
+            children: 'flex flex-col justify-start gap-4 p-6',
+            base: 'flex rounded-lg border border-gray-100 bg-white/70 shadow-lg dark:border-gray-700 dark:bg-[rgb(32,38,43)]/70'
+          }
+        }}
       >
-        <div className='flex justify-between items-start mb-3'>
+        <div className='flex justify-between items-start'>
           <div>
-            <h3 className='text-lg font-semibold text-gray-800 dark:text-white'>
+            <h3 className='text-lg sm:text-xl font-semibold text-gray-800 dark:text-white flex items-center gap-2'>
+              <MdOutlineTableBar className='w-6 sm:w-8 h-6 sm:h-8' />
               Masa {order.tableNumber}
             </h3>
-            <p className='text-sm text-gray-600 dark:text-gray-400'>
-              {order.orderNumber}
-            </p>
+
           </div>
-          <Badge color={status.color} className={status.bg}>
+          <Badge color={status.color} className={`${status.bg} shadow-sm`}>
             <div className='flex items-center'>
               <StatusIcon className="mr-1 h-3 w-3" />
               {status.text}
@@ -413,14 +463,17 @@ export default function DashOrders() {
             </span>
           </div>
         </div>
-
-        {order.customerName && (
-          <div className='mt-3 pt-3 border-t border-gray-200'>
-            <p className='text-sm text-gray-600 dark:text-gray-400'>
-              <span className='font-medium'>Müşteri:</span> {order.customerName}
-            </p>
-          </div>
-        )}
+        <div className='flex flex-row gap-1 mt-3 pt-3 border-t border-gray-200 justify-between items-center'>
+          {order.sessionId && (
+            <div className='text-xs flex items-center gap-1'>
+              <HiUser className='w-4 sm:w-6 h-4 sm:h-6 text-gray-600 dark:text-gray-400' />
+              <span className='font-mono text-xs sm:text-sm break-all text-gray-600 dark:text-gray-400'>{order.sessionId} {order.customerName ? `- ${order.customerName}` : ''}</span>
+            </div>
+          )}
+          <p className='text-xs text-gray-600 dark:text-gray-400'>
+            {order.orderNumber}
+          </p>
+        </div>
 
         {/* Urgency indicator */}
         {order.status === 'pending' && urgencyLevel === 'critical' && (
@@ -498,20 +551,21 @@ export default function DashOrders() {
         className="mb-4"
         theme={{
           root: {
-            children: 'flex h-full flex-col justify-center gap-1 p-2 md:p-3'
+            children: 'flex h-full flex-col justify-center gap-1 p-2 md:p-3',
+            base: 'flex rounded-lg border border-gray-200 bg-white/30 shadow-lg dark:border-gray-700 dark:bg-[rgb(32,38,43)]/70'
           }
         }}>
-        <div className="border-b border-gray-200 dark:border-gray-700">
-          <ul className="flex flex-wrap -mb-px text-sm font-medium text-center">
+        <div className="border-b border-gray-300 dark:border-gray-600">
+          <ul className="flex flex-wrap -mb-px text-xs sm:text-sm font-semibold sm:font-medium text-center">
             <li className="mr-1">
               <button
                 onClick={() => handleViewModeChange('byTable')}
                 className={`inline-flex items-center justify-center p-2 border-b-2 rounded-t-lg ${viewMode === 'byTable'
-                  ? 'text-blue-600 border-blue-600 active dark:text-blue-500 dark:border-blue-500'
-                  : 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300'
+                  ? 'text-purple-500 border-purple-500 active dark:text-purple-400 dark:border-purple-400'
+                  : 'border-transparent hover:text-gray-900 hover:border-gray-400 dark:hover:text-gray-200'
                   }`}
               >
-                <MdRestaurant className="mr-2 h-4 w-4" />
+                <MdRestaurant className="mr-1 h-4 w-4" />
                 Masalara Göre
               </button>
             </li>
@@ -519,11 +573,11 @@ export default function DashOrders() {
               <button
                 onClick={() => handleViewModeChange('byDate')}
                 className={`inline-flex items-center justify-center p-2 border-b-2 rounded-t-lg ${viewMode === 'byDate'
-                  ? 'text-blue-600 border-blue-600 active dark:text-blue-500 dark:border-blue-500'
-                  : 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300'
+                  ? 'text-purple-500 border-purple-500 active dark:text-purple-400 dark:border-purple-400'
+                  : 'border-transparent hover:text-gray-900 hover:border-gray-400 dark:hover:text-gray-200'
                   }`}
               >
-                <HiCalendar className="mr-2 h-4 w-4" />
+                <HiCalendar className="mr-1 h-4 w-4" />
                 Güne Göre
               </button>
             </li>
@@ -531,11 +585,11 @@ export default function DashOrders() {
               <button
                 onClick={() => handleViewModeChange('all')}
                 className={`inline-flex items-center justify-center p-2 border-b-2 rounded-t-lg ${viewMode === 'all'
-                  ? 'text-blue-600 border-blue-600 active dark:text-blue-500 dark:border-blue-500'
-                  : 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300'
+                  ? 'text-purple-500 border-purple-500 active dark:text-purple-400 dark:border-purple-400'
+                  : 'border-transparent hover:text-gray-900 hover:border-gray-400 dark:hover:text-gray-200'
                   }`}
               >
-                <HiViewBoards className="mr-2 h-4 w-4" />
+                <HiViewBoards className="mr-1 h-4 w-4" />
                 Bütün Siparişler
               </button>
             </li>
@@ -672,7 +726,14 @@ export default function DashOrders() {
       ) : viewMode === 'all' || viewMode === 'byDate' ? (
         // All Orders View or Date View
         sortedOrders.length === 0 ? (
-          <Card>
+          <Card
+            theme={{
+              root: {
+                children: 'flex flex-col justify-start gap-4 p-6',
+                base: 'flex rounded-lg border border-gray-100 bg-white/50 shadow-lg dark:border-[rgb(22,26,29)]/80 dark:bg-[rgb(22,26,29)]/80'
+              }
+            }}
+          >
             <div className="text-center py-8">
               <MdRestaurant className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Sipariş bulunamadı</h3>
@@ -685,7 +746,7 @@ export default function DashOrders() {
             </div>
           </Card>
         ) : (
-          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+          <div className='grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4'>
             {sortedOrders.map(renderOrderCard)}
           </div>
         )
@@ -695,7 +756,14 @@ export default function DashOrders() {
           {!selectedTable ? (
             // Show all tables
             tables.length === 0 ? (
-              <Card>
+              <Card
+                theme={{
+                  root: {
+                    children: 'flex flex-col justify-start gap-4 p-6',
+                    base: 'flex rounded-lg border border-gray-100 bg-white/50 shadow-lg dark:border-[rgb(22,26,29)]/80 dark:bg-[rgb(22,26,29)]/80'
+                  }
+                }}
+              >
                 <div className="text-center py-8">
                   <MdRestaurant className="mx-auto h-12 w-12 text-gray-400" />
                   <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Masa bulunamadı</h3>
@@ -705,7 +773,7 @@ export default function DashOrders() {
                 </div>
               </Card>
             ) : (
-              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+              <div className='grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4'>
                 {tables.map((table) => {
                   const tableOrders = getTableOrders(table.tableNumber);
                   const hasUrgentOrders = tableOrders.some(order =>
@@ -715,11 +783,17 @@ export default function DashOrders() {
                   return (
                     <Card
                       key={table.tableNumber}
-                      className={`md:max-w-xsm min-w-xs flex flex-col justify-between cursor-pointer transition-all duration-200 hover:shadow-lg ${table.totalCount === 0 ? 'ring-1 ring-gray-200 bg-gray-50' :
-                        hasUrgentOrders ? 'ring-2 ring-red-400 bg-red-50' :
+                      className={`md:max-w-xsm min-w-xs flex flex-col justify-between cursor-pointer transition-all duration-200 hover:shadow-lg border rounded-lg
+                        ${hasUrgentOrders ? 'ring-2 ring-red-400 bg-red-50 dark:bg-red-900/20' :
                           table.pendingCount > 0 ? 'ring-2 ring-yellow-200' : ''
                         }`}
                       onClick={() => setSelectedTable(table.tableNumber)}
+                      theme={{
+                        root: {
+                          children: 'flex h-full flex-col justify-start gap-1 p-4',
+                          base: 'flex rounded-lg border border-gray-100 bg-white/70 shadow-lg dark:border-gray-700 dark:bg-[rgb(22,26,29)]/80'
+                        }
+                      }}
                     >
                       <div className='flex justify-between items-start mb-3'>
                         <div className='flex flex-col items-start gap-2'>
@@ -734,33 +808,85 @@ export default function DashOrders() {
                             <p className='text-sm text-gray-600 dark:text-gray-400'>
                               {table.totalCount > 0 ? `Bugün ${table.totalCount} sipariş` : 'Bugün sipariş yok'}
                             </p>
+                            <div className='mt-1'>
+                              {table.sessionStatus?.isActive ? (
+                                <Badge color="success" size="sm">
+                                  <div className='flex items-center gap-1'>
+                                    <div className='w-2 h-2 rounded-full animate-pulse bg-green-500'></div>
+                                    <span className='text-xs font-semibold'>Oturum açık</span>
+                                  </div>
+                                </Badge>
+                              ) : (
+                                <Badge color="gray" size="sm">
+                                  <div className='flex items-center gap-1'>
+                                    <div className='w-2 h-2 rounded-full animate-pulse bg-gray-500'></div>
+                                    <span className='text-xs font-semibold'>Oturum kapalı</span>
+                                  </div>
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        <div className='text-right'>
+                        <div className='text-right flex flex-col gap-1'>
+                          {/* Urgency indicator */}
+                          {table.totalCount > 0 && hasUrgentOrders && (
+                            <Badge color="failure">
+                              <div className='flex items-center gap-1'>
+                                <FiAlertTriangle className="h-4 w-4 animate-pulse" />
+                                <span className='text-xs font-semibold'>Kritik Siparişler!</span>
+                              </div>
+                            </Badge>
+                          )}
+
+                          {/* Previous day active orders warning */}
+                          {table.hasPrevDayOrder && (
+                            <Badge color="warning">
+                              <div className='flex items-center gap-1'>
+                                <HiClock className="h-4 w-4 animate-pulse" />
+                                <span className='text-xs font-semibold'>Eski siparişler var</span>
+                              </div>
+                            </Badge>
+                          )}
+
                           {table.totalCount === 0 ? (
-                            <Badge color="gray" className="mb-1">
-                              Boş
+                            <Badge color="danger">
+                              <div className='flex items-center gap-1'>
+                                <CiNoWaitingSign className="h-4 w-4" />
+                                <span className='text-xs font-semibold'>Bugün sipariş yok</span>
+                              </div>
                             </Badge>
                           ) : (
                             <>
                               {table.pendingCount > 0 && (
                                 <Badge color="warning" className="mb-1">
-                                  {table.pendingCount} Bekliyor
+                                  <div className='flex items-center gap-1'>
+                                    <IoIosHourglass className="h-4 w-4 animate-pulse" />
+                                    <span className='text-xs font-semibold'>{table.pendingCount} Bekliyor</span>
+                                  </div>
                                 </Badge>
                               )}
                               {table.preparingCount > 0 && (
                                 <Badge color="info" className="mb-1">
-                                  {table.preparingCount} Hazırlanıyor
+                                  <div className='flex items-center gap-1'>
+                                    <TbProgress className="h-4 w-4 animate-pulse" />
+                                    <span className='text-xs font-semibold'>{table.preparingCount} Hazırlanıyor</span>
+                                  </div>
                                 </Badge>
                               )}
                               {table.readyCount > 0 && (
                                 <Badge color="success">
-                                  {table.readyCount} Hazır
+                                  <div className='flex items-center gap-1'>
+                                    <MdDone className="h-4 w-4" />
+                                    <span className='text-xs font-semibold'>{table.readyCount} Hazır</span>
+                                  </div>
                                 </Badge>
                               )}
                               {table.servedCount > 0 && (
                                 <Badge color="success">
-                                  {table.servedCount} Servis Edildi
+                                  <div className='flex items-center gap-1'>
+                                    <MdDoneAll className="h-4 w-4" />
+                                    <span className='text-xs font-semibold'>{table.servedCount} Servis Edildi</span>
+                                  </div>
                                 </Badge>
                               )}
                             </>
@@ -777,23 +903,13 @@ export default function DashOrders() {
                             </div>
                           </>
                         ) : (
-                          <div className='text-center py-2'>
+                          <div className='text-center'>
                             <p className='text-sm text-gray-500 dark:text-gray-400'>
                               Bugün henüz sipariş girilmemiş
                             </p>
                           </div>
                         )}
                       </div>
-
-                      {/* Urgency indicator */}
-                      {table.totalCount > 0 && hasUrgentOrders && (
-                        <div className='mt-3 pt-3 border-t border-red-200'>
-                          <div className='flex items-center text-red-600'>
-                            <HiClock className="mr-1 h-4 w-4 animate-pulse" />
-                            <span className='text-sm font-semibold'>Kritik Siparişler!</span>
-                          </div>
-                        </div>
-                      )}
                     </Card>
                   );
                 })}
@@ -813,7 +929,14 @@ export default function DashOrders() {
               </div>
 
               {getTableOrders(selectedTable).length === 0 ? (
-                <Card>
+                <Card
+                  theme={{
+                    root: {
+                      children: 'flex flex-col justify-start gap-4 p-6',
+                      base: 'flex rounded-lg border border-gray-100 bg-white/50 shadow-lg dark:border-[rgb(22,26,29)]/80 dark:bg-[rgb(22,26,29)]/80'
+                    }
+                  }}
+                >
                   <div className="text-center py-8">
                     <MdRestaurant className="mx-auto h-12 w-12 text-gray-400" />
                     <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Sipariş bulunamadı</h3>
@@ -823,14 +946,15 @@ export default function DashOrders() {
                   </div>
                 </Card>
               ) : (
-                <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+                <div className='grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4'>
                   {getTableOrders(selectedTable).map(renderOrderCard)}
                 </div>
               )}
             </div>
           )}
         </div>
-      )}
+      )
+      }
 
       {/* Order Detail Modal */}
       <Modal show={showOrderModal} onClose={() => setShowOrderModal(false)} size="2xl" className='pt-16 mb-2'>
@@ -863,6 +987,12 @@ export default function DashOrders() {
                   <p className='text-sm text-gray-600 dark:text-gray-400'>Saat</p>
                   <p className='font-semibold dark:text-white'>{formatDate(selectedOrder.createdAt)}</p>
                 </div>
+                {selectedOrder.sessionId && (
+                  <div className='text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg'>
+                    <p className='text-sm text-gray-600 dark:text-gray-400'>Kullanıcı ID</p>
+                    <p className='font-semibold dark:text-white break-all font-mono text-xs'>{selectedOrder.sessionId}</p>
+                  </div>
+                )}
               </div>
 
               {/* Customer Info */}
@@ -921,6 +1051,6 @@ export default function DashOrders() {
           )}
         </Modal.Body>
       </Modal>
-    </div>
+    </div >
   );
 }
