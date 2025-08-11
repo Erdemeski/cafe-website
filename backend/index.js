@@ -1,13 +1,7 @@
 import dotenv from "dotenv";
-import path from 'path';
-import { fileURLToPath } from 'url';
-// Always load .env from the same folder as this file (backend dir), regardless of CWD
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.join(__dirname, '.env') });
+dotenv.config();
 import express from "express";
 import mongoose from "mongoose";
-import Order from './models/order.model.js';
 import userRoutes from './routes/user.route.js';
 import authRoutes from './routes/auth.route.js';
 import cookieParser from "cookie-parser";
@@ -18,15 +12,6 @@ import productRoutes from './routes/product.route.js';
 import categoryRoutes from './routes/category.route.js';
 
 
-if (!process.env.MONGO) {
-    console.error("[Config Error] MONGO is not set in backend/.env. Example: MONGO=mongodb+srv://<user>:<pass>@<cluster>/<db>?retryWrites=true&w=majority");
-    process.exit(1);
-}
-
-if (!process.env.JWT_SECRET) {
-    console.error("[Config Error] JWT_SECRET is not set in backend/.env. Please set a strong secret string.");
-    process.exit(1);
-}
 
 mongoose
     .connect(process.env.MONGO)

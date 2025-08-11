@@ -1,6 +1,6 @@
 import { Avatar, Badge, Button, Dropdown, DropdownHeader, Modal, Navbar, NavbarToggle } from 'flowbite-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { FaMoon, FaSun } from 'react-icons/fa'
 import { FaEuroSign, FaDollarSign } from 'react-icons/fa6'
 import { GrCurrency } from "react-icons/gr"
@@ -10,7 +10,7 @@ import { toggleLanguage } from '../redux/page_Language/languageSlice';
 import { selectCurrency } from '../redux/currency/currencySlice';
 import en from "../assets/lang_Icons/en.png";
 import tr from "../assets/lang_Icons/tr.png";
-import { signoutSuccess, sessionExpired } from '../redux/user/userSlice';
+import { signoutSuccess, sessionExpired, sessionRefreshSuccess } from '../redux/user/userSlice';
 import { HiOutlineExclamationCircle } from 'react-icons/hi'
 
 export default function Header() {
@@ -48,47 +48,95 @@ export default function Header() {
         return () => clearTimeout(timer);
     }, [sessionExpiresAt, dispatch]);
 
-    // Minimal activity-based keep-alive: refresh session on user activity
+    // Efficient keep-alive: track recent activity and refresh only near expiry with throttling
+    const lastActivityTsRef = useRef(0);
+    const lastRefreshTsRef = useRef(0);
+    const sessionExpiresAtRef = useRef(sessionExpiresAt);
+
+    // keep sessionExpiresAt in a ref without re-creating listeners/intervals
+    useEffect(() => {
+        sessionExpiresAtRef.current = sessionExpiresAt;
+    }, [sessionExpiresAt]);
+
     useEffect(() => {
         if (!currentUser) return;
-        let cooldown = false;
-        const REFRESH_COOLDOWN_MS = 3000; // prevent spamming
 
-        const refresh = async () => {
-            if (cooldown) return;
-            cooldown = true;
+        const ACTIVITY_DEBOUNCE_MS = 1000; // collapse bursts of events
+        const MIN_REFRESH_INTERVAL_MS = 15_000; // do not refresh more often than this
+        const REFRESH_WHEN_REMAINING_BELOW_MS = 20_000; // only refresh when close to expiring
+
+        let activityDebounceTimer = null;
+
+        const markActivity = () => {
+            if (document.visibilityState === 'hidden') return;
+            if (activityDebounceTimer) clearTimeout(activityDebounceTimer);
+            activityDebounceTimer = setTimeout(() => {
+                lastActivityTsRef.current = Date.now();
+            }, ACTIVITY_DEBOUNCE_MS);
+        };
+
+        const tryRefresh = async () => {
+            const exp = sessionExpiresAtRef.current;
+            if (!exp) return;
+            const now = Date.now();
+            const msLeft = exp - now;
+
+            // Only refresh if: user was active recently AND token is near expiry AND cooldown passed
+            const wasActiveRecently = now - lastActivityTsRef.current <= 60_000; // 1 minute window
+            const cooldownPassed = now - lastRefreshTsRef.current >= MIN_REFRESH_INTERVAL_MS;
+            const isNearExpiry = msLeft <= REFRESH_WHEN_REMAINING_BELOW_MS;
+
+            if (!wasActiveRecently || !cooldownPassed || !isNearExpiry) return;
+
             try {
-                const res = await fetch('/api/auth/refresh', { method: 'POST' });
+                const res = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' });
                 if (res.status === 401) {
                     dispatch(sessionExpired());
                     return;
                 }
                 const data = await res.json();
                 if (res.ok && data?.sessionExpiresAt) {
-                    // Update only the expiry timestamp in store
-                    dispatch({ type: 'user/signInSuccess', payload: { ...currentUser, sessionExpiresAt: data.sessionExpiresAt } });
+                    lastRefreshTsRef.current = now;
+                    // Update only expiry timestamp
+                    dispatch(sessionRefreshSuccess(data.sessionExpiresAt));
                 }
             } catch (_) {
                 // ignore network errors here
-            } finally {
-                setTimeout(() => { cooldown = false; }, REFRESH_COOLDOWN_MS);
             }
         };
 
-        const activityEvents = ['click', 'keydown', 'mousemove', 'scroll', 'visibilitychange'];
-        const handler = () => {
-            if (document.visibilityState === 'hidden') return;
-            refresh();
+        const activityEvents = ['click', 'keydown', 'mousemove', 'scroll', 'pointerdown'];
+        activityEvents.forEach(evt => window.addEventListener(evt, markActivity, { passive: true }));
+        document.addEventListener('visibilitychange', markActivity);
+
+        // Background interval: cheap check every 5s
+        const interval = setInterval(tryRefresh, 5000);
+
+        return () => {
+            if (activityDebounceTimer) clearTimeout(activityDebounceTimer);
+            clearInterval(interval);
+            activityEvents.forEach(evt => window.removeEventListener(evt, markActivity));
+            document.removeEventListener('visibilitychange', markActivity);
         };
-        activityEvents.forEach(evt => window.addEventListener(evt, handler));
-        return () => activityEvents.forEach(evt => window.removeEventListener(evt, handler));
+    }, [currentUser, dispatch]);
+
+    // On returning to foreground, instantly sign out if already expired
+    useEffect(() => {
+        if (!currentUser) return;
+        const handleVisibility = () => {
+            if (document.visibilityState !== 'visible') return;
+            const exp = sessionExpiresAtRef.current;
+            if (exp && Date.now() >= exp) {
+                dispatch(sessionExpired());
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibility);
+        return () => document.removeEventListener('visibilitychange', handleVisibility);
     }, [currentUser, dispatch]);
 
     const handleSignout = async () => {
         try {
-            const res = await fetch('/api/user/signout', {
-                method: 'POST',
-            });
+            const res = await fetch('/api/user/signout', { method: 'POST', credentials: 'include' });
             const data = await res.json();
             if (!res.ok) {
                 console.log(data.message);
@@ -247,9 +295,7 @@ export default function Header() {
                         <HiOutlineExclamationCircle className='h-14 w-14 text-gray-400 dark:text-gray-200 mb-4 mx-auto' />
                         <h3 className='mb-5 text-lg text-gray-500 dark:text-gray-400'>Are you sure you want to sign out?</h3>
                         <div className='flex justify-center gap-6'>
-                            <Link to={'/'}>
-                                <Button color='warning' onClick={handleSignout}>Yes, sign out</Button>
-                            </Link>
+                            <Button color='warning' onClick={handleSignout}>Yes, sign out</Button>
                             <Button color='gray' onClick={() => setShowSignout(false)}>Cancel</Button>
                         </div>
                     </div>

@@ -25,6 +25,10 @@ const userSlice = createSlice({
             state.loading = false;
             state.error = action.payload;
         },
+        // Update only the session expiry timestamp without touching currentUser
+        sessionRefreshSuccess: (state, action) => {
+            state.sessionExpiresAt = action.payload || null;
+        },
         updateStart: (state) => {
             state.loading = true;
             state.error = null;
@@ -66,5 +70,5 @@ const userSlice = createSlice({
     },
 });
 
-export const { signInStart, signInSuccess, signInFailure, updateStart, updateSuccess, updateFailure, deleteUserStart, deleteUserSuccess, deleteUserFailure, signoutSuccess, sessionExpired } = userSlice.actions;
+export const { signInStart, signInSuccess, signInFailure, sessionRefreshSuccess, updateStart, updateSuccess, updateFailure, deleteUserStart, deleteUserSuccess, deleteUserFailure, signoutSuccess, sessionExpired } = userSlice.actions;
 export default userSlice.reducer;

@@ -5,8 +5,8 @@ import jwt from "jsonwebtoken";
 
 export const signup = async (req, res, next) => {
     const { staffId, firstName, lastName, password } = req.body;
-    
-    if (!staffId || !firstName || !lastName || !password || 
+
+    if (!staffId || !firstName || !lastName || !password ||
         staffId === '' || firstName === '' || lastName === '' || password === '') {
         return next(errorHandler(400, 'All fields are required!'));
     }
@@ -61,29 +61,29 @@ export const signin = async (req, res, next) => {
         if (!validUser) {
             return next(errorHandler(404, 'Staff not found'));
         }
-        
+
         const validPassword = bcryptjs.compareSync(password, validUser.password);
         if (!validPassword) {
             return next(errorHandler(400, 'Invalid password'));
         }
 
         const token = jwt.sign(
-            { 
-                id: validUser._id, 
+            {
+                id: validUser._id,
                 staffId: validUser.staffId,
                 isAdmin: validUser.isAdmin,
                 isWaiter: validUser.isWaiter,
                 isManager: validUser.isManager,
                 isReception: validUser.isReception
-            }, 
+            },
             process.env.JWT_SECRET,
-            { expiresIn: '2m' } // 2 minutes
+            { expiresIn: '10m' } // 10 minutes
         );
 
         const { password: pass, ...rest } = validUser._doc;
 
         const isProd = process.env.NODE_ENV === 'production';
-        const sessionDurationMs = 2* 60 * 1000; // 2 minutes
+        const sessionDurationMs = 10 * 60 * 1000; // 10 minutes
         res
             .status(200)
             .cookie('access_token', token, {
@@ -129,11 +129,11 @@ export const refreshSession = async (req, res, next) => {
         const token = jwt.sign(
             { id, staffId, isAdmin, isWaiter, isManager, isReception },
             process.env.JWT_SECRET,
-            { expiresIn: '2m' }
+            { expiresIn: '10m' }
         );
 
         const isProd = process.env.NODE_ENV === 'production';
-        const sessionDurationMs = 2 * 60 * 1000;
+        const sessionDurationMs = 10 * 60 * 1000; // 10 minutes
 
         res
             .cookie('access_token', token, {
